@@ -14,10 +14,10 @@ type MetricMeta = {
 };
 
 const metricMeta: MetricMeta[] = [
-  { key: "emissions", label: "Emissions", accent: "var(--chartreuse)", suffix: "" },
-  { key: "congestion", label: "Congestion", accent: "var(--rose)", suffix: "" },
-  { key: "peakDemand", label: "Peak Demand", accent: "var(--amber)", suffix: "" },
-  { key: "equityScore", label: "Vulnerable Coverage", accent: "var(--teal)", suffix: "" },
+  { key: "emissions", label: "Pollution Health", accent: "var(--chartreuse)", suffix: "" },
+  { key: "congestion", label: "Congestion Health", accent: "var(--rose)", suffix: "" },
+  { key: "peakDemand", label: "Energy Health", accent: "var(--amber)", suffix: "" },
+  { key: "equityScore", label: "Social Equity", accent: "var(--teal)", suffix: "" },
   { key: "cost", label: "Financial Stability", accent: "var(--cyan)", suffix: "", cost: false },
 ];
 

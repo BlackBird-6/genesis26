@@ -20,8 +20,30 @@ const METRIC_LABELS: Record<string, string> = {
 
 const METRIC_ORDER = ["emissions", "congestion", "energy_demand", "equity", "fiscal"];
 
+import { createPortal } from "react-dom";
+
+function TooltipPortal({ trace, rect }: { trace: ThoughtTrace; rect: DOMRect }) {
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <span
+      className={styles.tooltip}
+      style={{
+        position: "fixed",
+        top: rect.top - 10,
+        left: rect.left + rect.width / 2,
+        transform: "translate(-50%, -100%)",
+      }}
+    >
+      {trace.reasoning && <p className={styles.tooltipReasoning}>{trace.reasoning}</p>}
+      <span className={styles.tooltipConfidence}>Confidence: {Math.round(trace.confidence * 100)}%</span>
+    </span>,
+    document.body,
+  );
+}
+
 function DeltaChip({ trace }: { trace: ThoughtTrace }) {
-  const [hovering, setHovering] = useState(false);
+  const [rect, setRect] = useState<DOMRect | null>(null);
   const label = METRIC_LABELS[trace.metricKey] ?? trace.metricKey;
   const sign = trace.delta >= 0 ? "+" : "";
   const colorClass = trace.delta > 0 ? styles.positive : trace.delta < 0 ? styles.negative : styles.neutral;
@@ -29,20 +51,11 @@ function DeltaChip({ trace }: { trace: ThoughtTrace }) {
   return (
     <span
       className={`${styles.deltaChip} ${colorClass}`}
-      onMouseEnter={() => setHovering(true)}
-      onMouseLeave={() => setHovering(false)}
+      onMouseEnter={(e) => setRect(e.currentTarget.getBoundingClientRect())}
+      onMouseLeave={() => setRect(null)}
     >
       {label}&nbsp;{sign}{trace.delta.toFixed(2)}
-      {hovering && (
-        <span className={styles.tooltip}>
-          {trace.reasoning && (
-            <p className={styles.tooltipReasoning}>{trace.reasoning}</p>
-          )}
-          <span className={styles.tooltipConfidence}>
-            Confidence: {Math.round(trace.confidence * 100)}%
-          </span>
-        </span>
-      )}
+      {rect && <TooltipPortal trace={trace} rect={rect} />}
     </span>
   );
 }

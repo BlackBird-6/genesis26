@@ -18,9 +18,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL: str = "llama-3.1-8b-instant"
-GROQ_API_URL: str = "https://api.groq.com/openai/v1/chat/completions"
+API_KEY: str = os.getenv("OPENAI_API_KEY", "test")
+MODEL: str = "openai/gpt-oss-120b"
+API_URL: str = "https://vjioo4r1vyvcozuj.us-east-2.aws.endpoints.huggingface.cloud/v1/chat/completions"
 
 # Shared async client — created lazily
 _client: httpx.AsyncClient | None = None
@@ -81,25 +81,25 @@ async def query_agent(
         {"delta": float, "confidence": float, "reasoning": str}
         delta clamped to [-0.5, 0.5], confidence clamped to [0.0, 1.0]
     """
-    if not GROQ_API_KEY:
-        raise RuntimeError("GROQ_API_KEY is not set. Add it to your .env file.")
+    if not API_KEY:
+        raise RuntimeError("OPENAI_API_KEY is not set. Add it to your .env file.")
 
     client = _get_client()
 
     payload = {
-        "model": GROQ_MODEL,
+        "model": MODEL,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
         "temperature": 0.1,
-        "max_tokens": 256,
+        "max_tokens": 1024,
     }
 
     resp = await client.post(
-        GROQ_API_URL,
+        API_URL,
         headers={
-            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Authorization": f"Bearer {API_KEY}",
             "Content-Type": "application/json",
         },
         json=payload,

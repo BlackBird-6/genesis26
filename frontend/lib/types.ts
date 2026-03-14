@@ -21,31 +21,9 @@ export type AggregateMetrics = {
   equityScore: number;
 };
 
-export type ActivePolicies = {
-  evOffPeakShift: number;
-  transitSubsidy: number;
-  addedCoolingCenters: number;
-  foodWasteReduction: number;
-};
-
 export type ScenarioState = {
   zones: ZoneState[];
   aggregate: AggregateMetrics;
-  activePolicies: ActivePolicies;
-};
-
-export type PolicyIntent =
-  | "ev_shift"
-  | "cooling_centers"
-  | "traffic_reduction"
-  | "food_waste"
-  | "optimize_bundle";
-
-export type PolicyPlan = {
-  intent: PolicyIntent;
-  label: string;
-  summary: string;
-  changes: Partial<ActivePolicies>;
 };
 
 export type ChatRole = "assistant" | "user" | "system";
@@ -74,9 +52,7 @@ export type ActivePolicyRecord = {
   policyId: string;
   policyText: string;
   label: string;
-  summary: string;
   createdAt: string;
-  changes: Partial<ActivePolicies>;
   traces: ThoughtTrace[];
 };
 

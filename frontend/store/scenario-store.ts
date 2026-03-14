@@ -1,8 +1,8 @@
 "use client";
 
 import { create } from "zustand";
-import { baselineScenario } from "../lib/scenario-data";
 import {
+  baselineScenario,
   buildScenarioFromBackend,
   getWebSocketUrl,
   normalisePolicyRecord,
@@ -10,7 +10,6 @@ import {
   type BackendEvent,
   type BackendPolicyRecord,
 } from "../lib/backend-bridge";
-import { parsePolicyPrompt } from "../lib/scenario-engine";
 import type { ActivePolicyRecord, ChatMessage, ConnectionStatus, ScenarioState, ThoughtTrace } from "../lib/types";
 
 type ScenarioStore = {
@@ -35,37 +34,16 @@ const initialMessages: ChatMessage[] = [
   },
 ];
 
-const baselineCityState: BackendCityState = {
-  metrics: {
-    emissions: 0.5,
-    congestion: 0.5,
-    equity: 0.5,
-    energy_demand: 0.5,
-    fiscal: 0.5,
-  },
-  confidence_score: 0.5,
-  active_policies: 0,
-  timestamp: new Date().toISOString(),
-};
-
 function makeId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function systemMessage(content: string): ChatMessage {
-  return {
-    id: makeId(),
-    role: "system",
-    content,
-  };
+  return { id: makeId(), role: "system", content };
 }
 
 function assistantMessage(content: string): ChatMessage {
-  return {
-    id: makeId(),
-    role: "assistant",
-    content,
-  };
+  return { id: makeId(), role: "assistant", content };
 }
 
 function syncFromPolicyList(policies: BackendPolicyRecord[], cityState: BackendCityState) {
@@ -75,14 +53,14 @@ function syncFromPolicyList(policies: BackendPolicyRecord[], cityState: BackendC
   return {
     policies: records,
     traces,
-    scenario: buildScenarioFromBackend(cityState, records),
+    scenario: buildScenarioFromBackend(cityState),
     confidenceScore: cityState.confidence_score,
     isApplying: false,
   };
 }
 
 export const useScenarioStore = create<ScenarioStore>((set, get) => ({
-  scenario: structuredClone(baselineScenario),
+  scenario: baselineScenario,
   messages: initialMessages,
   policies: [],
   traces: [],
@@ -90,10 +68,9 @@ export const useScenarioStore = create<ScenarioStore>((set, get) => ({
   confidenceScore: 0.5,
   socket: null,
   isApplying: false,
+
   init() {
-    if (typeof window === "undefined") {
-      return;
-    }
+    if (typeof window === "undefined") return;
 
     const existing = get().socket;
     if (existing && (existing.readyState === WebSocket.OPEN || existing.readyState === WebSocket.CONNECTING)) {
@@ -101,7 +78,6 @@ export const useScenarioStore = create<ScenarioStore>((set, get) => ({
     }
 
     const ws = new WebSocket(getWebSocketUrl());
-
     set({ socket: ws, connectionStatus: "connecting" });
 
     ws.onopen = () => {
@@ -170,8 +146,7 @@ export const useScenarioStore = create<ScenarioStore>((set, get) => ({
           isApplying: false,
           messages: [
             ...state.messages,
-            systemMessage(`Interpreter: ${record.summary}`),
-            assistantMessage(`Policy added. ${record.label} is now active and its agent traces are visible below.`),
+            assistantMessage(`Policy added: "${record.label}" is now active.`),
           ],
         }));
         return;
@@ -180,17 +155,17 @@ export const useScenarioStore = create<ScenarioStore>((set, get) => ({
       if (payload.type === "policy_removed") {
         set((state) => ({
           policies: state.policies.filter((policy) => policy.policyId !== payload.data.policy_id),
-          messages: [...state.messages, assistantMessage(`Removed policy ${payload.data.policy_id}. Aggregate city state updated.`)],
+          messages: [...state.messages, assistantMessage(`Policy removed. Aggregate city state updated.`)],
         }));
         return;
       }
 
       if (payload.type === "city_state") {
-        set((state) => ({
-          scenario: buildScenarioFromBackend(payload.data, state.policies),
+        set({
+          scenario: buildScenarioFromBackend(payload.data),
           confidenceScore: payload.data.confidence_score,
           isApplying: false,
-        }));
+        });
         return;
       }
 
@@ -209,25 +184,19 @@ export const useScenarioStore = create<ScenarioStore>((set, get) => ({
       }
     };
   },
+
   async applyPrompt(prompt) {
     const text = prompt.trim();
-    if (!text) {
-      return;
-    }
+    if (!text) return;
 
     const ws = get().socket;
-    const parsed = parsePolicyPrompt(text);
 
     set((state) => ({
       isApplying: true,
       messages: [
         ...state.messages,
-        {
-          id: makeId(),
-          role: "user",
-          content: text,
-        },
-        systemMessage(`Submitting ${parsed.label.toLowerCase()} to backend agents.`),
+        { id: makeId(), role: "user", content: text },
+        systemMessage("Sending to backend agents…"),
       ],
     }));
 
@@ -242,6 +211,7 @@ export const useScenarioStore = create<ScenarioStore>((set, get) => ({
 
     ws.send(JSON.stringify({ action: "add_policy", policy: text }));
   },
+
   removePolicy(policyId) {
     const ws = get().socket;
     if (!ws || ws.readyState !== WebSocket.OPEN) {
@@ -250,7 +220,6 @@ export const useScenarioStore = create<ScenarioStore>((set, get) => ({
       }));
       return;
     }
-
     ws.send(JSON.stringify({ action: "remove_policy", policy_id: policyId }));
   },
 }));
