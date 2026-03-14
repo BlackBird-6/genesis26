@@ -2,7 +2,8 @@
 Toronto Climate Pulse — Groq API Client
 
 Async client for querying Llama-3-8B via Groq's API.
-Each call returns a strict JSON response: {"delta": float, "confidence": float}
+Each call returns a strict JSON response:
+  {"delta": float, "confidence": float, "reasoning": str}
 """
 
 from __future__ import annotations
@@ -77,7 +78,7 @@ async def query_agent(
     Query a single Groq Llama-3 agent.
 
     Returns:
-        {"delta": float, "confidence": float}
+        {"delta": float, "confidence": float, "reasoning": str}
         delta clamped to [-0.5, 0.5], confidence clamped to [0.0, 1.0]
     """
     if not GROQ_API_KEY:
@@ -92,7 +93,7 @@ async def query_agent(
             {"role": "user", "content": user_prompt},
         ],
         "temperature": 0.1,
-        "max_tokens": 100,
+        "max_tokens": 256,
     }
 
     resp = await client.post(
@@ -116,8 +117,10 @@ async def query_agent(
 
     delta = float(parsed.get("delta", 0.0))
     confidence = float(parsed.get("confidence", 0.5))
+    reasoning = str(parsed.get("reasoning", ""))
 
     return {
         "delta": round(_clamp(delta, -0.5, 0.5), 4),
         "confidence": round(_clamp(confidence, 0.0, 1.0), 4),
+        "reasoning": reasoning,
     }

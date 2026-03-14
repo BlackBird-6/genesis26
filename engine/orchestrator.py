@@ -2,7 +2,7 @@
 Toronto Climate Pulse — Agent Orchestrator (Groq-powered)
 
 Runs 5 Llama-3-8B specialist agents in parallel via asyncio.gather.
-Each agent returns {"delta": float, "confidence": float}.
+Each agent returns {"delta": float, "confidence": float, "reasoning": str}.
 """
 
 from __future__ import annotations
@@ -31,6 +31,7 @@ async def _run_single_agent(
         metric_key=config["metric_key"],
         delta=result["delta"],
         confidence=result["confidence"],
+        reasoning=result.get("reasoning", ""),
     )
 
 

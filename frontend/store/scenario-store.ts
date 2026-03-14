@@ -149,6 +149,7 @@ export const useScenarioStore = create<ScenarioStore>((set, get) => ({
           metricKey: payload.data.metric_key,
           delta: payload.data.delta,
           confidence: payload.data.confidence,
+          reasoning: payload.data.reasoning ?? "",
         };
         set((state) => ({
           traces: [trace, ...state.traces].slice(0, 24),

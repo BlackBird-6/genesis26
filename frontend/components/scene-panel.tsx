@@ -309,7 +309,7 @@ function DistrictScene({ scenario }: { scenario: ScenarioState }) {
   return (
     <>
       <color attach="background" args={["#f4d8b2"]} />
-      <fog attach="fog" args={["#f4d8b2", 22, 38]} />
+      <fog attach="fog" args={["#f4d8b2", 30, 55]} />
       <ambientLight intensity={0.9} />
       <directionalLight intensity={2.7} position={[8, 16, 12]} castShadow shadow-mapSize-width={1024} shadow-mapSize-height={1024} />
       <PerspectiveCamera makeDefault position={[0, 11.8, 17.8]} fov={27} />
@@ -317,6 +317,9 @@ function DistrictScene({ scenario }: { scenario: ScenarioState }) {
         enablePan={false}
         minDistance={15}
         maxDistance={35}
+        maxPolarAngle={Math.PI / 2}  // Prevents panning below the surface
+        minAzimuthAngle={-Math.PI / 2}  // Prevents camera from rotating too far to the left
+        maxAzimuthAngle={Math.PI / 2}  // Prevents camera from rotating too far to the right
         target={[0.2, 5.1, 0.7]}
       />
 
@@ -373,12 +376,12 @@ export function ScenePanel({ scenario }: ScenePanelProps) {
           <p className={styles.eyebrow}>District Visual Twin</p>
           <h2 className={styles.title}>Toronto waterfront skyline model</h2>
         </div>
-        <div className={styles.legend}>
+        {/* <div className={styles.legend}>
           <span>Lake Ontario foreground / Rogers Centre / CN Tower / financial core</span>
           <span>Traffic activates the Gardiner and frontage lanes</span>
           <span>Peak demand drives tower glow across the skyline</span>
           <span>Cooling and heat effects remain policy-reactive</span>
-        </div>
+        </div> */}
       </div>
       <div className={styles.canvasWrap}>
         <Canvas shadows dpr={[1, 2]}>

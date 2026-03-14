@@ -5,6 +5,9 @@
   border: 1px solid var(--line);
   box-shadow: var(--shadow);
   min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
 }
 
 .header {
@@ -12,6 +15,7 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+  flex-shrink: 0;
 }
 
 .eyebrow {
@@ -39,44 +43,147 @@
 
 .chips {
   display: grid;
-  gap: 12px;
-  margin-top: 18px;
-  overflow: auto;
+  gap: 8px;
+  margin-top: 16px;
+  overflow: visible;
   min-height: 0;
 }
 
+/* ---------- Policy row ---------- */
+
 .policyRow {
-  padding: 14px;
-  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 3px;
   background: #f7f4ee;
   border: 1px solid var(--line);
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: flex-start;
+  overflow: visible;
 }
 
-.policyMeta strong {
-  display: block;
-  margin-bottom: 4px;
-}
-
-.policyMeta p {
-  margin: 0;
-  color: var(--muted);
+.policyLabel {
+  color: var(--ink);
   font-size: 0.88rem;
-  line-height: 1.45;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1;
 }
+
+/* ---------- Delta chips ---------- */
+
+.deltaChips {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+  overflow: visible;
+}
+
+.deltaChip {
+  position: relative;
+  padding: 3px 8px;
+  border-radius: 2px;
+  font-size: 0.72rem;
+  font-family: var(--font-mono), monospace;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  cursor: default;
+  transition: opacity 0.15s ease;
+  overflow: visible;
+}
+
+.deltaChip:hover {
+  opacity: 0.9;
+}
+
+.positive {
+  background: rgba(73, 108, 37, 0.14);
+  color: #3d6a14;
+  border: 1px solid rgba(73, 108, 37, 0.22);
+}
+
+.negative {
+  background: rgba(164, 67, 59, 0.1);
+  color: #a4433b;
+  border: 1px solid rgba(164, 67, 59, 0.18);
+}
+
+.neutral {
+  background: rgba(94, 103, 111, 0.1);
+  color: var(--muted);
+  border: 1px solid rgba(94, 103, 111, 0.15);
+}
+
+/* ---------- Tooltip ---------- */
+
+.tooltip {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  width: 280px;
+  padding: 14px 16px;
+  border-radius: 6px;
+  background: var(--paper-strong);
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.14);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: var(--line-strong);
+}
+
+.tooltipReasoning {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.8rem;
+  line-height: 1.55;
+  font-style: italic;
+  white-space: normal;
+}
+
+.tooltipConfidence {
+  display: block;
+  color: var(--teal);
+  font-size: 0.72rem;
+  font-family: var(--font-mono), monospace;
+  margin-top: 2px;
+}
+
+/* ---------- Remove button ---------- */
 
 .remove {
   border: 1px solid var(--line-strong);
   background: #fffdf8;
-  color: var(--ink);
-  padding: 9px 12px;
+  color: #a4433b;
+  padding: 5px 10px;
   border-radius: 2px;
   cursor: pointer;
   white-space: nowrap;
+  font-size: 0.76rem;
+  font-family: var(--font-mono), monospace;
+  transition: background 0.15s ease;
+  flex-shrink: 0;
 }
+
+.remove:hover {
+  background: rgba(164, 67, 59, 0.08);
+}
+
+/* ---------- Empty state ---------- */
 
 .empty {
   padding: 18px 14px;

@@ -18,7 +18,7 @@ const metricMeta: MetricMeta[] = [
   { key: "congestion", label: "Congestion", accent: "var(--rose)", suffix: "" },
   { key: "peakDemand", label: "Peak Demand", accent: "var(--amber)", suffix: "" },
   { key: "equityScore", label: "Vulnerable Coverage", accent: "var(--teal)", suffix: "" },
-  { key: "cost", label: "Policy Cost", accent: "var(--cyan)", suffix: "$", cost: true },
+  { key: "cost", label: "Financial Stability", accent: "var(--cyan)", suffix: "", cost: false },
 ];
 
 export function MetricGrid({ aggregate }: MetricGridProps) {
@@ -38,7 +38,7 @@ export function MetricGrid({ aggregate }: MetricGridProps) {
               <div
                 className={styles.fill}
                 style={{
-                  width: `${metric.cost ? Math.min((value / 600000) * 100, 100) : value}%`,
+                  width: `${value}%`,
                   background: metric.accent,
                 }}
               />

@@ -17,7 +17,7 @@
 
 .mainColumn {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto minmax(170px, 0.7fr);
+  grid-template-rows: auto minmax(0, 1.6fr) auto minmax(200px, 0.5fr);
   gap: 18px;
   min-width: 0;
   min-height: 0;
@@ -30,9 +30,10 @@
 
 .lowerGrid {
   display: grid;
-  grid-template-columns: 1fr 1.1fr;
+  grid-template-columns: 1fr;
   gap: 18px;
   min-height: 0;
+  overflow: visible;
 }
 
 .sidebar {

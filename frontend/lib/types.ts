@@ -67,6 +67,7 @@ export type ThoughtTrace = {
   metricKey: string;
   delta: number;
   confidence: number;
+  reasoning: string;
 };
 
 export type ActivePolicyRecord = {

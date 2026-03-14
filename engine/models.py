@@ -68,6 +68,7 @@ class AgentResult(BaseModel):
     metric_key: str = Field(..., description="Which Metrics field this delta applies to")
     delta: float = Field(..., ge=-0.5, le=0.5, description="Impact delta (-0.5 to 0.5)")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Agent confidence")
+    reasoning: str = Field("", description="Quantitative reasoning for the delta")
 
 
 # ---------------------------------------------------------------------------

@@ -1,73 +1,36 @@
-.panel {
-  display: grid;
-  grid-template-columns: 1.5fr 0.8fr;
-  gap: 18px;
-  padding: 22px;
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 22px;
   border: 1px solid var(--line-strong);
-  border-radius: 6px;
+  border-radius: 4px;
   background: var(--paper-strong);
   box-shadow: var(--shadow);
 }
 
-.eyebrow {
-  margin: 0 0 10px;
+.brand {
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.16em;
   font-size: 0.74rem;
   font-family: var(--font-mono), monospace;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
-.title {
-  margin: 0;
-  font-size: clamp(2rem, 3vw, 3.2rem);
-  line-height: 1;
-  max-width: 16ch;
-  letter-spacing: -0.04em;
+.divider {
+  width: 1px;
+  height: 16px;
+  background: var(--line-strong);
+  flex-shrink: 0;
 }
 
-.copy {
-  margin: 16px 0 0;
-  max-width: 64ch;
-  color: var(--muted);
-  font-size: 0.98rem;
-  line-height: 1.55;
-}
-
-.summaryCard {
-  align-self: stretch;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: 18px;
-  border-radius: 4px;
-  border: 1px solid var(--line);
-  background:
-    linear-gradient(transparent 31px, rgba(17, 22, 26, 0.05) 32px),
-    linear-gradient(90deg, transparent 31px, rgba(17, 22, 26, 0.05) 32px),
-    #faf7f0;
-  background-size: 32px 32px;
-}
-
-.summaryLabel {
-  color: var(--muted);
-  font-size: 0.82rem;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  font-family: var(--font-mono), monospace;
-}
-
-.summaryValue {
-  font-size: 1.5rem;
-}
-
-.summaryMeta {
-  color: var(--muted);
-  font-size: 0.88rem;
-}
-
-@media (max-width: 900px) {
-  .panel {
-    grid-template-columns: 1fr;
-  }
+.subtitle {
+  font-size: 0.96rem;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

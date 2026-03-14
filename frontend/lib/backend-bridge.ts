@@ -16,6 +16,7 @@ export type BackendAgentResult = {
   metric_key: string;
   delta: number;
   confidence: number;
+  reasoning: string;
 };
 
 export type BackendPolicyRecord = {
@@ -79,6 +80,7 @@ export function normalisePolicyRecord(record: BackendPolicyRecord): ActivePolicy
     metricKey: result.metric_key,
     delta: result.delta,
     confidence: result.confidence,
+    reasoning: result.reasoning ?? "",
   }));
 
   return {
@@ -94,13 +96,7 @@ export function normalisePolicyRecord(record: BackendPolicyRecord): ActivePolicy
 
 function aggregateFromBackend(state: BackendCityState, records: ActivePolicyRecord[]): AggregateMetrics {
   const policyChanges = mergePolicyChanges(records);
-  const estimatedCost =
-    120000 +
-    (policyChanges.evOffPeakShift ?? 0) * 180000 +
-    (policyChanges.transitSubsidy ?? 0) * 260000 +
-    (policyChanges.addedCoolingCenters ?? 0) * 65000 +
-    (policyChanges.foodWasteReduction ?? 0) * 90000 +
-    (1 - state.metrics.fiscal) * 90000;
+  const estimatedCost = Math.round((state.metrics.fiscal) * 100);
 
   return {
     emissions: Math.round(state.metrics.emissions * 100),

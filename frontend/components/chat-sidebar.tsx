@@ -21,8 +21,10 @@ export function ChatSidebar() {
   const [isPending, startTransition] = useTransition();
   const hasUserPrompt = messages.some((message) => message.role === "user");
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function handleSubmit(event?: FormEvent<HTMLFormElement>) {
+    if (event) {
+      event.preventDefault();
+    }
     const prompt = draft.trim();
     if (!prompt) {
       return;
@@ -46,9 +48,7 @@ export function ChatSidebar() {
       <div className={styles.top}>
         <p className={styles.eyebrow}>Policy Chat</p>
         <h2 className={styles.title}>Scenario input</h2>
-        <p className={styles.copy}>
-          The frontend now submits policy text to the backend agent pipeline over WebSocket and reflects returned policy state, traces, and aggregate metrics.
-        </p>
+
         <p className={styles.connection}>Connection: {connectionStatus}</p>
       </div>
 
@@ -76,6 +76,12 @@ export function ChatSidebar() {
         <textarea
           className={styles.input}
           onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              handleSubmit();
+            }
+          }}
           placeholder="Enter a scenario request for charging, transit, cooling, or waste..."
           rows={4}
           value={draft}

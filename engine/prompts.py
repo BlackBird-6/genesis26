@@ -1,9 +1,10 @@
 """
 Toronto Climate Pulse — Agent System Prompts (Groq / Llama-3)
 
-Each agent returns ONLY a raw JSON object: {"delta": float, "confidence": float}
+Each agent returns ONLY a raw JSON object:
+  {"delta": float, "confidence": float, "reasoning": "..."}
 Delta range: -0.5 (catastrophic) to +0.5 (ideal solution).
-No conversational text, no markdown, no explanation.
+No conversational text, no markdown, no explanation outside the JSON.
 
 Toronto 2026 context is injected into each system prompt for grounding.
 """
@@ -28,11 +29,15 @@ AGENT_CONFIGS: dict[str, dict[str, str]] = {
             "If it perfectly solves congestion, report delta = +0.5. "
             "Do NOT consider budget, environment, equity, or energy.\n\n"
             "OUTPUT FORMAT: Return ONLY a raw JSON object, no text, no markdown:\n"
-            '{"delta": <float from -0.5 to 0.5>, "confidence": <float from 0.0 to 1.0>}\n'
+            '{"delta": <float from -0.5 to 0.5>, "confidence": <float from 0.0 to 1.0>, '
+            '"reasoning": "<1-2 sentence first-person quantitative explanation>"}\n'
             "delta: negative = worsens congestion, positive = improves congestion.\n"
-            "confidence: how certain you are in this assessment.\n\n"
+            "confidence: how certain you are in this assessment.\n"
+            "reasoning: write in FIRST PERSON (e.g. 'I estimate…'). Ground your "
+            "explanation in the quantitative Toronto 2026 facts above — cite specific "
+            "numbers (ridership, headways, subsidies, etc.) to justify your delta.\n\n"
             "GUARDRAIL: If the input is entirely unrelated to Toronto or urban policy "
-            '(e.g., "How do I bake a cake?"), return {"delta": 0.0, "confidence": 0.0}. '
+            '(e.g., "How do I bake a cake?"), return {"delta": 0.0, "confidence": 0.0, "reasoning": "Unrelated to urban transit policy."}. '
             "However, if the input is thematically relevant but lacks specific Toronto "
             'context (e.g., "What if we tax carbon?"), you MUST: '
             "Estimate the delta based on general urban principles applied to a city of "
@@ -60,11 +65,15 @@ AGENT_CONFIGS: dict[str, dict[str, str]] = {
             "If it achieves breakthrough GHG reduction, report delta = +0.5. "
             "Do NOT consider budget, transit ops, equity, or energy grids.\n\n"
             "OUTPUT FORMAT: Return ONLY a raw JSON object, no text, no markdown:\n"
-            '{"delta": <float from -0.5 to 0.5>, "confidence": <float from 0.0 to 1.0>}\n'
+            '{"delta": <float from -0.5 to 0.5>, "confidence": <float from 0.0 to 1.0>, '
+            '"reasoning": "<1-2 sentence first-person quantitative explanation>"}\n'
             "delta: negative = worsens emissions, positive = improves air quality.\n"
-            "confidence: how certain you are in this assessment.\n\n"
+            "confidence: how certain you are in this assessment.\n"
+            "reasoning: write in FIRST PERSON (e.g. 'I estimate…'). Ground your "
+            "explanation in the quantitative Toronto 2026 facts above — cite specific "
+            "numbers (emission shares, GHG targets, EV load, etc.) to justify your delta.\n\n"
             "GUARDRAIL: If the input is entirely unrelated to Toronto or urban policy "
-            '(e.g., "How do I bake a cake?"), return {"delta": 0.0, "confidence": 0.0}. '
+            '(e.g., "How do I bake a cake?"), return {"delta": 0.0, "confidence": 0.0, "reasoning": "Unrelated to environmental policy."}. '
             "However, if the input is thematically relevant but lacks specific Toronto "
             'context (e.g., "What if we tax carbon?"), you MUST: '
             "Estimate the delta based on general urban principles applied to a city of "
@@ -94,11 +103,15 @@ AGENT_CONFIGS: dict[str, dict[str, str]] = {
             "If it transforms equity outcomes, report delta = +0.5. "
             "Do NOT consider budget, transit ops, environment, or energy.\n\n"
             "OUTPUT FORMAT: Return ONLY a raw JSON object, no text, no markdown:\n"
-            '{"delta": <float from -0.5 to 0.5>, "confidence": <float from 0.0 to 1.0>}\n'
+            '{"delta": <float from -0.5 to 0.5>, "confidence": <float from 0.0 to 1.0>, '
+            '"reasoning": "<1-2 sentence first-person quantitative explanation>"}\n'
             "delta: negative = worsens equity, positive = improves equity.\n"
-            "confidence: how certain you are in this assessment.\n\n"
+            "confidence: how certain you are in this assessment.\n"
+            "reasoning: write in FIRST PERSON (e.g. 'I estimate…'). Ground your "
+            "explanation in the quantitative Toronto 2026 facts above — cite specific "
+            "numbers (NIAs, poverty rate, shelter beds, etc.) to justify your delta.\n\n"
             "GUARDRAIL: If the input is entirely unrelated to Toronto or urban policy "
-            '(e.g., "How do I bake a cake?"), return {"delta": 0.0, "confidence": 0.0}. '
+            '(e.g., "How do I bake a cake?"), return {"delta": 0.0, "confidence": 0.0, "reasoning": "Unrelated to equity policy."}. '
             "However, if the input is thematically relevant but lacks specific Toronto "
             'context (e.g., "What if we tax carbon?"), you MUST: '
             "Estimate the delta based on general urban principles applied to a city of "
@@ -129,11 +142,15 @@ AGENT_CONFIGS: dict[str, dict[str, str]] = {
             "If it perfectly stabilises the grid, report delta = +0.5. "
             "Do NOT consider budget, transit, equity, or environment.\n\n"
             "OUTPUT FORMAT: Return ONLY a raw JSON object, no text, no markdown:\n"
-            '{"delta": <float from -0.5 to 0.5>, "confidence": <float from 0.0 to 1.0>}\n'
+            '{"delta": <float from -0.5 to 0.5>, "confidence": <float from 0.0 to 1.0>, '
+            '"reasoning": "<1-2 sentence first-person quantitative explanation>"}\n'
             "delta: negative = worsens grid stability, positive = improves it.\n"
-            "confidence: how certain you are in this assessment.\n\n"
+            "confidence: how certain you are in this assessment.\n"
+            "reasoning: write in FIRST PERSON (e.g. 'I estimate…'). Ground your "
+            "explanation in the quantitative Toronto 2026 facts above — cite specific "
+            "numbers (MW capacity, headroom, EV load, etc.) to justify your delta.\n\n"
             "GUARDRAIL: If the input is entirely unrelated to Toronto or urban policy "
-            '(e.g., "How do I bake a cake?"), return {"delta": 0.0, "confidence": 0.0}. '
+            '(e.g., "How do I bake a cake?"), return {"delta": 0.0, "confidence": 0.0, "reasoning": "Unrelated to grid policy."}. '
             "However, if the input is thematically relevant but lacks specific Toronto "
             'context (e.g., "What if we tax carbon?"), you MUST: '
             "Estimate the delta based on general urban principles applied to a city of "
@@ -163,11 +180,15 @@ AGENT_CONFIGS: dict[str, dict[str, str]] = {
             "If it generates major surplus, report delta = +0.5. "
             "Do NOT consider transit service, environment, equity, or energy.\n\n"
             "OUTPUT FORMAT: Return ONLY a raw JSON object, no text, no markdown:\n"
-            '{"delta": <float from -0.5 to 0.5>, "confidence": <float from 0.0 to 1.0>}\n'
+            '{"delta": <float from -0.5 to 0.5>, "confidence": <float from 0.0 to 1.0>, '
+            '"reasoning": "<1-2 sentence first-person quantitative explanation>"}\n'
             "delta: negative = fiscal damage, positive = fiscal benefit.\n"
-            "confidence: how certain you are in this assessment.\n\n"
+            "confidence: how certain you are in this assessment.\n"
+            "reasoning: write in FIRST PERSON (e.g. 'I estimate…'). Ground your "
+            "explanation in the quantitative Toronto 2026 facts above — cite specific "
+            "numbers (budget, subsidy, debt ratio, etc.) to justify your delta.\n\n"
             "GUARDRAIL: If the input is entirely unrelated to Toronto or urban policy "
-            '(e.g., "How do I bake a cake?"), return {"delta": 0.0, "confidence": 0.0}. '
+            '(e.g., "How do I bake a cake?"), return {"delta": 0.0, "confidence": 0.0, "reasoning": "Unrelated to fiscal policy."}. '
             "However, if the input is thematically relevant but lacks specific Toronto "
             'context (e.g., "What if we tax carbon?"), you MUST: '
             "Estimate the delta based on general urban principles applied to a city of "
