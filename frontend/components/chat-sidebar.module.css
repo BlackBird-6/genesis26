@@ -1,0 +1,137 @@
+.panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 22px;
+  border-radius: 4px;
+  border: 1px solid var(--line-strong);
+  background: var(--paper-strong);
+  box-shadow: var(--shadow);
+  min-height: 0;
+}
+
+.top {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-family: var(--font-mono), monospace;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.6rem;
+}
+
+.copy {
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.connection {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-family: var(--font-mono), monospace;
+}
+
+.thread {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.message {
+  padding: 14px;
+  border-radius: 2px;
+  border: 1px solid var(--line);
+}
+
+.message p {
+  margin: 8px 0 0;
+  line-height: 1.55;
+}
+
+.assistant {
+  background: #f6f6f2;
+}
+
+.user {
+  background: #f1f5f7;
+}
+
+.system {
+  background: #faf1e6;
+}
+
+.role {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-family: var(--font-mono), monospace;
+}
+
+.typing {
+  color: var(--accent);
+  font-size: 0.9rem;
+}
+
+.quickPrompts {
+  display: grid;
+  gap: 10px;
+}
+
+.quickPrompt {
+  text-align: left;
+  border: 1px solid var(--line);
+  background: #f7f4ee;
+  color: var(--ink);
+  padding: 12px 14px;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.form {
+  display: grid;
+  gap: 12px;
+}
+
+.input {
+  width: 100%;
+  resize: none;
+  min-height: 92px;
+  border-radius: 2px;
+  border: 1px solid var(--line-strong);
+  background: #fffdf8;
+  color: var(--ink);
+  padding: 14px;
+}
+
+.submit {
+  border: 1px solid var(--ink);
+  border-radius: 2px;
+  padding: 12px 18px;
+  background: var(--ink);
+  color: #f7f4ee;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.submit:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}

@@ -1,0 +1,58 @@
+.panel {
+  position: relative;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  background: #cfd8df;
+  box-shadow: var(--shadow);
+}
+
+.overlay {
+  position: absolute;
+  inset: 0 0 auto 0;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 18px;
+  pointer-events: none;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: rgba(247, 244, 238, 0.72);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-family: var(--font-mono), monospace;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.22rem;
+  color: #fffdf8;
+}
+
+.legend {
+  display: grid;
+  gap: 8px;
+  color: rgba(247, 244, 238, 0.72);
+  font-size: 0.78rem;
+  text-align: right;
+  font-family: var(--font-mono), monospace;
+}
+
+.canvasWrap {
+  flex: 1;
+  min-height: 0;
+}
+
+.canvasWrap :global(canvas) {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
