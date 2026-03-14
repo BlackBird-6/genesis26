@@ -30,7 +30,16 @@ AGENT_CONFIGS: dict[str, dict[str, str]] = {
             "OUTPUT FORMAT: Return ONLY a raw JSON object, no text, no markdown:\n"
             '{"delta": <float from -0.5 to 0.5>, "confidence": <float from 0.0 to 1.0>}\n'
             "delta: negative = worsens congestion, positive = improves congestion.\n"
-            "confidence: how certain you are in this assessment."
+            "confidence: how certain you are in this assessment.\n\n"
+            "GUARDRAIL: If the input is entirely unrelated to Toronto or urban policy "
+            '(e.g., "How do I bake a cake?"), return {"delta": 0.0, "confidence": 0.0}. '
+            "However, if the input is thematically relevant but lacks specific Toronto "
+            'context (e.g., "What if we tax carbon?"), you MUST: '
+            "Estimate the delta based on general urban principles applied to a city of "
+            "Toronto's scale (2.8M+ population, cold climate, high density). "
+            "Penalize the confidence score significantly (scale it between 0.1 and 0.3) "
+            "to reflect that this is a generalized projection rather than a data-backed "
+            "local simulation."
         ),
     },
     "eco_advocate": {
@@ -53,7 +62,16 @@ AGENT_CONFIGS: dict[str, dict[str, str]] = {
             "OUTPUT FORMAT: Return ONLY a raw JSON object, no text, no markdown:\n"
             '{"delta": <float from -0.5 to 0.5>, "confidence": <float from 0.0 to 1.0>}\n'
             "delta: negative = worsens emissions, positive = improves air quality.\n"
-            "confidence: how certain you are in this assessment."
+            "confidence: how certain you are in this assessment.\n\n"
+            "GUARDRAIL: If the input is entirely unrelated to Toronto or urban policy "
+            '(e.g., "How do I bake a cake?"), return {"delta": 0.0, "confidence": 0.0}. '
+            "However, if the input is thematically relevant but lacks specific Toronto "
+            'context (e.g., "What if we tax carbon?"), you MUST: '
+            "Estimate the delta based on general urban principles applied to a city of "
+            "Toronto's scale (2.8M+ population, cold climate, high density). "
+            "Penalize the confidence score significantly (scale it between 0.1 and 0.3) "
+            "to reflect that this is a generalized projection rather than a data-backed "
+            "local simulation."
         ),
     },
     "equity_sentinel": {
@@ -78,7 +96,16 @@ AGENT_CONFIGS: dict[str, dict[str, str]] = {
             "OUTPUT FORMAT: Return ONLY a raw JSON object, no text, no markdown:\n"
             '{"delta": <float from -0.5 to 0.5>, "confidence": <float from 0.0 to 1.0>}\n'
             "delta: negative = worsens equity, positive = improves equity.\n"
-            "confidence: how certain you are in this assessment."
+            "confidence: how certain you are in this assessment.\n\n"
+            "GUARDRAIL: If the input is entirely unrelated to Toronto or urban policy "
+            '(e.g., "How do I bake a cake?"), return {"delta": 0.0, "confidence": 0.0}. '
+            "However, if the input is thematically relevant but lacks specific Toronto "
+            'context (e.g., "What if we tax carbon?"), you MUST: '
+            "Estimate the delta based on general urban principles applied to a city of "
+            "Toronto's scale (2.8M+ population, cold climate, high density). "
+            "Penalize the confidence score significantly (scale it between 0.1 and 0.3) "
+            "to reflect that this is a generalized projection rather than a data-backed "
+            "local simulation."
         ),
     },
     "grid_guardian": {
@@ -104,7 +131,16 @@ AGENT_CONFIGS: dict[str, dict[str, str]] = {
             "OUTPUT FORMAT: Return ONLY a raw JSON object, no text, no markdown:\n"
             '{"delta": <float from -0.5 to 0.5>, "confidence": <float from 0.0 to 1.0>}\n'
             "delta: negative = worsens grid stability, positive = improves it.\n"
-            "confidence: how certain you are in this assessment."
+            "confidence: how certain you are in this assessment.\n\n"
+            "GUARDRAIL: If the input is entirely unrelated to Toronto or urban policy "
+            '(e.g., "How do I bake a cake?"), return {"delta": 0.0, "confidence": 0.0}. '
+            "However, if the input is thematically relevant but lacks specific Toronto "
+            'context (e.g., "What if we tax carbon?"), you MUST: '
+            "Estimate the delta based on general urban principles applied to a city of "
+            "Toronto's scale (2.8M+ population, cold climate, high density). "
+            "Penalize the confidence score significantly (scale it between 0.1 and 0.3) "
+            "to reflect that this is a generalized projection rather than a data-backed "
+            "local simulation."
         ),
     },
     "fiscal_architect": {
@@ -129,7 +165,16 @@ AGENT_CONFIGS: dict[str, dict[str, str]] = {
             "OUTPUT FORMAT: Return ONLY a raw JSON object, no text, no markdown:\n"
             '{"delta": <float from -0.5 to 0.5>, "confidence": <float from 0.0 to 1.0>}\n'
             "delta: negative = fiscal damage, positive = fiscal benefit.\n"
-            "confidence: how certain you are in this assessment."
+            "confidence: how certain you are in this assessment.\n\n"
+            "GUARDRAIL: If the input is entirely unrelated to Toronto or urban policy "
+            '(e.g., "How do I bake a cake?"), return {"delta": 0.0, "confidence": 0.0}. '
+            "However, if the input is thematically relevant but lacks specific Toronto "
+            'context (e.g., "What if we tax carbon?"), you MUST: '
+            "Estimate the delta based on general urban principles applied to a city of "
+            "Toronto's scale (2.8M+ population, cold climate, high density). "
+            "Penalize the confidence score significantly (scale it between 0.1 and 0.3) "
+            "to reflect that this is a generalized projection rather than a data-backed "
+            "local simulation."
         ),
     },
 }

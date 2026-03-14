@@ -315,12 +315,8 @@ function DistrictScene({ scenario }: { scenario: ScenarioState }) {
       <PerspectiveCamera makeDefault position={[0, 11.8, 17.8]} fov={27} />
       <OrbitControls
         enablePan={false}
-        minAzimuthAngle={-0.22}
-        maxAzimuthAngle={0.22}
-        minPolarAngle={Math.PI / 3.6}
-        maxPolarAngle={Math.PI / 2.85}
         minDistance={15}
-        maxDistance={20}
+        maxDistance={35}
         target={[0.2, 5.1, 0.7]}
       />
 

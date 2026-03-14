@@ -91,7 +91,7 @@ async def query_agent(
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
-        "temperature": 0.3,
+        "temperature": 0.1,
         "max_tokens": 100,
     }
 
