@@ -2,7 +2,7 @@
 Toronto Climate Pulse — Pydantic Schemas
 
 Defines the core data models for city state, agent responses,
-policy input, and WebSocket event envelopes.
+policy input, state machine, and WebSocket event envelopes.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 
 # ---------------------------------------------------------------------------
-# Metrics & Fiscal sub-models
+# Metrics sub-model
 # ---------------------------------------------------------------------------
 
 class Metrics(BaseModel):
@@ -24,14 +24,7 @@ class Metrics(BaseModel):
     congestion: float = Field(0.5, ge=0.0, le=1.0, description="Traffic congestion index (0=worst, 1=best)")
     equity: float = Field(0.5, ge=0.0, le=1.0, description="Social equity index (0=worst, 1=best)")
     energy_demand: float = Field(0.5, ge=0.0, le=1.0, description="Energy demand pressure (0=over-capacity, 1=comfortable)")
-
-
-class Fiscal(BaseModel):
-    """City fiscal snapshot."""
-    available_budget: float = Field(18_900_000_000, description="Remaining operating budget (CAD)")
-    projected_roi: float = Field(0.0, description="Projected return on investment ratio")
-    tax_impact: float = Field(0.0, description="Estimated property tax change (%)")
-    debt_to_revenue: float = Field(0.137, description="Debt-to-revenue ratio")
+    fiscal: float = Field(0.5, ge=0.0, le=1.0, description="Fiscal health (0=bankrupt, 1=surplus)")
 
 
 # ---------------------------------------------------------------------------
@@ -41,14 +34,13 @@ class Fiscal(BaseModel):
 class CityState(BaseModel):
     """Complete city simulation state sent to the frontend."""
     metrics: Metrics = Field(default_factory=Metrics)
-    fiscal: Fiscal = Field(default_factory=Fiscal)
-    confidence_score: float = Field(0.5, ge=0.0, le=1.0, description="Simulation reliability score")
-    clarification_request: Optional[str] = Field(None, description="Clarification prompt for vague policies")
+    confidence_score: float = Field(0.5, ge=0.0, le=1.0, description="Average simulation confidence")
+    active_policies: int = Field(0, description="Number of active policies")
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 
 # ---------------------------------------------------------------------------
-# Agent response
+# Agent result — raw LLM response per agent
 # ---------------------------------------------------------------------------
 
 class AgentDomain(str, Enum):
@@ -59,42 +51,61 @@ class AgentDomain(str, Enum):
     FISCAL = "fiscal"
 
 
-class AgentResponse(BaseModel):
-    """Individual specialist agent analysis result."""
-    agent_name: str = Field(..., description="Human-readable agent name")
-    domain: AgentDomain = Field(..., description="Agent's specialty domain")
-    metric_deltas: dict[str, float] = Field(
-        default_factory=dict,
-        description="Changes to CityState metrics (key → delta value)"
-    )
-    fiscal_deltas: dict[str, float] = Field(
-        default_factory=dict,
-        description="Changes to CityState fiscal fields (key → delta value)"
-    )
-    narrative: str = Field("", description="Human-readable impact summary")
-    warnings: list[str] = Field(default_factory=list, description="Critical warnings")
-    confidence: float = Field(0.5, ge=0.0, le=1.0, description="Agent-level confidence")
+# Maps each agent domain to which Metrics field it affects
+DOMAIN_TO_METRIC: dict[AgentDomain, str] = {
+    AgentDomain.TRANSIT: "congestion",
+    AgentDomain.ENVIRONMENT: "emissions",
+    AgentDomain.EQUITY: "equity",
+    AgentDomain.GRID: "energy_demand",
+    AgentDomain.FISCAL: "fiscal",
+}
+
+
+class AgentResult(BaseModel):
+    """Raw result from a single Groq agent call."""
+    agent_name: str
+    domain: AgentDomain
+    metric_key: str = Field(..., description="Which Metrics field this delta applies to")
+    delta: float = Field(..., ge=-0.5, le=0.5, description="Impact delta (-0.5 to 0.5)")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="Agent confidence")
 
 
 # ---------------------------------------------------------------------------
-# Policy input from the user
+# Policy record — stored in the registry
 # ---------------------------------------------------------------------------
 
-class PolicyInput(BaseModel):
-    """Payload received from the frontend via WebSocket."""
-    policy: str = Field(..., min_length=1, description="Natural-language policy description")
-    parameters: dict[str, Any] = Field(default_factory=dict, description="Optional structured parameters")
+class PolicyRecord(BaseModel):
+    """A single policy and its associated agent results."""
+    policy_id: str
+    policy_text: str
+    agent_results: list[AgentResult] = Field(default_factory=list)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 
 # ---------------------------------------------------------------------------
-# WebSocket event envelope
+# WebSocket protocol
 # ---------------------------------------------------------------------------
+
+class WsAction(str, Enum):
+    ADD_POLICY = "add_policy"
+    REMOVE_POLICY = "remove_policy"
+    LIST_POLICIES = "list_policies"
+
+
+class WsInbound(BaseModel):
+    """Message received from the frontend via WebSocket."""
+    action: WsAction
+    policy: Optional[str] = None
+    policy_id: Optional[str] = None
+
 
 class EventType(str, Enum):
     AGENT_RESULT = "agent_result"
     CITY_STATE = "city_state"
+    POLICY_ADDED = "policy_added"
+    POLICY_REMOVED = "policy_removed"
+    POLICY_LIST = "policy_list"
     UNCERTAIN_PREDICTION = "uncertain_prediction"
-    CLARIFICATION = "clarification"
     ERROR = "error"
 
 

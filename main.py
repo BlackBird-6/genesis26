@@ -1,15 +1,14 @@
 """
 Toronto Climate Pulse — FastAPI Application
 
-WebSocket-based backend that streams multi-agent simulation results
-in real time.  Serves a minimal test frontend at GET /.
+WebSocket-based backend that manages a multi-policy state machine
+with Groq-powered Llama-3 agents. Serves a test frontend at GET /.
 """
 
 from __future__ import annotations
 
 import json
 import traceback
-from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -17,8 +16,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-from engine.models import EventType, PolicyInput, SimulationEvent
-from engine.orchestrator import AgentOrchestrator
+from engine.models import EventType, SimulationEvent, WsAction, WsInbound
+from engine.state_manager import PolicyRegistry
 
 # ---------------------------------------------------------------------------
 # App setup
@@ -26,8 +25,8 @@ from engine.orchestrator import AgentOrchestrator
 
 app = FastAPI(
     title="Toronto Climate Pulse",
-    description="Multi-Agent urban sustainability simulation engine",
-    version="0.1.0",
+    description="Groq-powered Multi-Agent urban sustainability simulation",
+    version="0.2.0",
 )
 
 app.add_middleware(
@@ -43,8 +42,8 @@ _STATIC_DIR = Path(__file__).resolve().parent / "static"
 _STATIC_DIR.mkdir(exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
-# Single orchestrator instance
-orchestrator = AgentOrchestrator()
+# Single shared policy registry
+registry = PolicyRegistry()
 
 
 # ---------------------------------------------------------------------------
@@ -62,11 +61,11 @@ async def serve_frontend():
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "service": "Toronto Climate Pulse", "version": "0.1.0"}
+    return {"status": "ok", "service": "Toronto Climate Pulse", "version": "0.2.0"}
 
 
 # ---------------------------------------------------------------------------
-# WebSocket — real-time simulation streaming
+# WebSocket — real-time policy state machine
 # ---------------------------------------------------------------------------
 
 def _event_json(event_type: EventType, data: dict) -> str:
@@ -81,47 +80,89 @@ async def websocket_simulation(ws: WebSocket):
 
     try:
         while True:
-            # Wait for a policy from the client
             raw = await ws.receive_text()
+
+            # Parse inbound message
             try:
                 payload = json.loads(raw)
-                policy_input = PolicyInput(**payload)
+                msg = WsInbound(**payload)
             except Exception:
                 await ws.send_text(_event_json(EventType.ERROR, {
-                    "message": "Invalid payload. Expected JSON: {\"policy\": \"...\"}",
+                    "message": "Invalid payload. Expected: {\"action\": \"add_policy\"|\"remove_policy\"|\"list_policies\", ...}",
                 }))
                 continue
 
-            # Run the multi-agent analysis
-            try:
-                responses, city_state = await orchestrator.analyze_policy(
-                    policy_input.policy
-                )
-            except Exception as exc:
-                await ws.send_text(_event_json(EventType.ERROR, {
-                    "message": f"Simulation error: {exc}",
-                    "traceback": traceback.format_exc(),
+            # ---- ADD POLICY ----
+            if msg.action == WsAction.ADD_POLICY:
+                if not msg.policy or not msg.policy.strip():
+                    await ws.send_text(_event_json(EventType.ERROR, {
+                        "message": "Missing 'policy' field for add_policy action.",
+                    }))
+                    continue
+
+                try:
+                    record = await registry.add_policy(msg.policy.strip())
+                except Exception as exc:
+                    await ws.send_text(_event_json(EventType.ERROR, {
+                        "message": f"Agent analysis failed: {exc}",
+                        "traceback": traceback.format_exc(),
+                    }))
+                    continue
+
+                # Stream each agent result
+                for ar in record.agent_results:
+                    await ws.send_text(_event_json(EventType.AGENT_RESULT, ar.model_dump()))
+
+                # Send policy added event
+                await ws.send_text(_event_json(EventType.POLICY_ADDED, {
+                    "policy_id": record.policy_id,
+                    "policy_text": record.policy_text,
+                    "agent_results": [ar.model_dump() for ar in record.agent_results],
                 }))
-                continue
 
-            # Stream each agent result individually
-            for resp in responses:
-                await ws.send_text(_event_json(EventType.AGENT_RESULT, resp.model_dump()))
+                # Broadcast updated aggregate state
+                state = registry.get_aggregate_state()
+                await ws.send_text(_event_json(EventType.CITY_STATE, state.model_dump(mode="json")))
 
-            # Send merged city state
-            await ws.send_text(_event_json(EventType.CITY_STATE, city_state.model_dump(mode="json")))
+                # Flag uncertain predictions
+                if state.confidence_score < 0.4:
+                    await ws.send_text(_event_json(EventType.UNCERTAIN_PREDICTION, {
+                        "confidence_score": state.confidence_score,
+                        "message": "Uncertain Prediction — low agent confidence across the board.",
+                    }))
 
-            # Flag uncertain predictions
-            if city_state.confidence_score < 0.4:
-                uncertain_data = {
-                    "confidence_score": city_state.confidence_score,
-                    "message": "Uncertain Prediction — policy specificity is too low for reliable results.",
-                }
-                if city_state.clarification_request:
-                    uncertain_data["clarification"] = city_state.clarification_request
-                    await ws.send_text(_event_json(EventType.CLARIFICATION, uncertain_data))
-                else:
-                    await ws.send_text(_event_json(EventType.UNCERTAIN_PREDICTION, uncertain_data))
+            # ---- REMOVE POLICY ----
+            elif msg.action == WsAction.REMOVE_POLICY:
+                if not msg.policy_id:
+                    await ws.send_text(_event_json(EventType.ERROR, {
+                        "message": "Missing 'policy_id' for remove_policy action.",
+                    }))
+                    continue
+
+                removed = registry.remove_policy(msg.policy_id)
+                if removed is None:
+                    await ws.send_text(_event_json(EventType.ERROR, {
+                        "message": f"Policy '{msg.policy_id}' not found.",
+                    }))
+                    continue
+
+                # Confirm removal
+                await ws.send_text(_event_json(EventType.POLICY_REMOVED, {
+                    "policy_id": msg.policy_id,
+                }))
+
+                # Broadcast reverted aggregate state
+                state = registry.get_aggregate_state()
+                await ws.send_text(_event_json(EventType.CITY_STATE, state.model_dump(mode="json")))
+
+            # ---- LIST POLICIES ----
+            elif msg.action == WsAction.LIST_POLICIES:
+                policies = registry.list_policies()
+                state = registry.get_aggregate_state()
+                await ws.send_text(_event_json(EventType.POLICY_LIST, {
+                    "policies": policies,
+                    "city_state": state.model_dump(mode="json"),
+                }))
 
     except WebSocketDisconnect:
         pass
