@@ -12,17 +12,12 @@ import json
 import traceback
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-from engine.models import (
-    AddPolicyRequest,
-    AddPolicyResponse,
-    ListPoliciesResponse,
-    StateResponse,
-)
+from engine.models import EventType, SimulationEvent, WsAction, WsInbound
 from engine.state_manager import PolicyRegistry
 
 # ---------------------------------------------------------------------------
@@ -88,50 +83,136 @@ async def health():
     return {"status": "ok", "service": "Toronto Climate Pulse", "version": "0.3.0"}
 
 
+def _event_json(event_type: EventType, data: dict) -> str:
+    """Create a JSON-serialised SimulationEvent."""
+    evt = SimulationEvent(type=event_type, data=data)
+    return evt.model_dump_json()
+
+
 # ---------------------------------------------------------------------------
-# API Routes - HTTP REST
+# WebSocket - real-time policy state machine
 # ---------------------------------------------------------------------------
 
-@app.get("/api/simulation/state", response_model=ListPoliciesResponse)
-async def get_state():
-    """Return the current list of policies and the overall city state."""
-    policies = registry.list_policies()
-    state = registry.get_aggregate_state()
-    return ListPoliciesResponse(policies=policies, city_state=state)
-
-
-@app.post("/api/simulation/policy", response_model=AddPolicyResponse)
-async def add_policy(request: AddPolicyRequest):
-    """Analyze and add a new policy."""
-    if not request.policy or not request.policy.strip():
-        raise HTTPException(status_code=400, detail="Policy text is required.")
+@app.websocket("/ws/simulation")
+async def websocket_simulation(ws: WebSocket):
+    await ws.accept()
 
     try:
-        record = await registry.add_policy(request.policy.strip())
-    except Exception as exc:
-        raise HTTPException(
-            status_code=500, detail=f"Agent analysis failed: {exc}"
-        )
+        while True:
+            raw = await ws.receive_text()
 
-    state = registry.get_aggregate_state()
+            try:
+                payload = json.loads(raw)
+                msg = WsInbound(**payload)
+            except Exception:
+                await ws.send_text(
+                    _event_json(
+                        EventType.ERROR,
+                        {
+                            "message": 'Invalid payload. Expected: {"action": "add_policy"|"remove_policy"|"list_policies", ...}',
+                        },
+                    )
+                )
+                continue
 
-    return AddPolicyResponse(
-        policy_id=record.policy_id,
-        policy_text=record.policy_text,
-        agent_results=record.agent_results,
-        city_state=state,
-    )
+            if msg.action == WsAction.ADD_POLICY:
+                if not msg.policy or not msg.policy.strip():
+                    await ws.send_text(
+                        _event_json(
+                            EventType.ERROR,
+                            {
+                                "message": "Missing 'policy' field for add_policy action.",
+                            },
+                        )
+                    )
+                    continue
 
+                try:
+                    record = await registry.add_policy(msg.policy.strip())
+                except Exception as exc:
+                    await ws.send_text(
+                        _event_json(
+                            EventType.ERROR,
+                            {
+                                "message": f"Agent analysis failed: {exc}",
+                                "traceback": traceback.format_exc(),
+                            },
+                        )
+                    )
+                    continue
 
-@app.delete("/api/simulation/policy/{policy_id}", response_model=StateResponse)
-async def remove_policy(policy_id: str):
-    """Remove an existing policy by its ID."""
-    removed = registry.remove_policy(policy_id)
-    if not removed:
-        raise HTTPException(status_code=404, detail=f"Policy '{policy_id}' not found.")
+                for ar in record.agent_results:
+                    await ws.send_text(_event_json(EventType.AGENT_RESULT, ar.model_dump()))
 
-    state = registry.get_aggregate_state()
-    return StateResponse(city_state=state)
+                await ws.send_text(
+                    _event_json(
+                        EventType.POLICY_ADDED,
+                        {
+                            "policy_id": record.policy_id,
+                            "policy_text": record.policy_text,
+                            "agent_results": [ar.model_dump() for ar in record.agent_results],
+                        },
+                    )
+                )
+
+                state = registry.get_aggregate_state()
+                await ws.send_text(_event_json(EventType.CITY_STATE, state.model_dump(mode="json")))
+
+                if state.confidence_score < 0.4:
+                    await ws.send_text(
+                        _event_json(
+                            EventType.UNCERTAIN_PREDICTION,
+                            {
+                                "confidence_score": state.confidence_score,
+                                "message": "Uncertain prediction: low aggregate agent confidence.",
+                            },
+                        )
+                    )
+
+            elif msg.action == WsAction.REMOVE_POLICY:
+                if not msg.policy_id:
+                    await ws.send_text(
+                        _event_json(
+                            EventType.ERROR,
+                            {
+                                "message": "Missing 'policy_id' for remove_policy action.",
+                            },
+                        )
+                    )
+                    continue
+
+                removed = registry.remove_policy(msg.policy_id)
+                if removed is None:
+                    await ws.send_text(
+                        _event_json(
+                            EventType.ERROR,
+                            {
+                                "message": f"Policy '{msg.policy_id}' not found.",
+                            },
+                        )
+                    )
+                    continue
+
+                await ws.send_text(_event_json(EventType.POLICY_REMOVED, {"policy_id": msg.policy_id}))
+
+                state = registry.get_aggregate_state()
+                await ws.send_text(_event_json(EventType.CITY_STATE, state.model_dump(mode="json")))
+
+            elif msg.action == WsAction.LIST_POLICIES:
+                policies = registry.list_policies()
+                state = registry.get_aggregate_state()
+                await ws.send_text(
+                    _event_json(
+                        EventType.POLICY_LIST,
+                        {
+                            "policies": policies,
+                            "city_state": state.model_dump(mode="json"),
+                        },
+                    )
+                )
+
+    except WebSocketDisconnect:
+        pass
 
 
 # ---------------------------------------------------------------------------

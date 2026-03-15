@@ -2,7 +2,7 @@
 Toronto Climate Pulse — Pydantic Schemas
 
 Defines the core data models for city state, agent responses,
-and policy input/output via REST API.
+policy input, state machine, and WebSocket event envelopes.
 """
 
 from __future__ import annotations
@@ -84,24 +84,34 @@ class PolicyRecord(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# HTTP REST API requests & responses
+# WebSocket protocol
 # ---------------------------------------------------------------------------
 
-class AddPolicyRequest(BaseModel):
-    policy: str = Field(..., description="The user's policy plain text")
+class WsAction(str, Enum):
+    ADD_POLICY = "add_policy"
+    REMOVE_POLICY = "remove_policy"
+    LIST_POLICIES = "list_policies"
 
 
-class AddPolicyResponse(BaseModel):
-    policy_id: str
-    policy_text: str
-    agent_results: list[AgentResult] = Field(default_factory=list)
-    city_state: CityState
+class WsInbound(BaseModel):
+    """Message received from the frontend via WebSocket."""
+    action: WsAction
+    policy: Optional[str] = None
+    policy_id: Optional[str] = None
 
 
-class StateResponse(BaseModel):
-    city_state: CityState
+class EventType(str, Enum):
+    AGENT_RESULT = "agent_result"
+    CITY_STATE = "city_state"
+    POLICY_ADDED = "policy_added"
+    POLICY_REMOVED = "policy_removed"
+    POLICY_LIST = "policy_list"
+    UNCERTAIN_PREDICTION = "uncertain_prediction"
+    ERROR = "error"
 
 
-class ListPoliciesResponse(BaseModel):
-    policies: list[dict] = Field(default_factory=list)
-    city_state: CityState
+class SimulationEvent(BaseModel):
+    """WebSocket message wrapper sent to the frontend."""
+    type: EventType
+    data: dict[str, Any]
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
