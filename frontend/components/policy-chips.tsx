@@ -14,8 +14,8 @@ const METRIC_LABELS: Record<string, string> = {
   congestion: "CONG",
   emissions: "EMIS",
   equity: "EQTY",
-  energy_demand: "GRID",
-  fiscal: "FISC",
+  energy_demand: "ENRG",
+  fiscal: "FINC",
 };
 
 const METRIC_ORDER = ["emissions", "congestion", "energy_demand", "equity", "fiscal"];
@@ -35,7 +35,11 @@ function TooltipPortal({ trace, rect }: { trace: ThoughtTrace; rect: DOMRect }) 
         transform: "translate(-50%, -100%)",
       }}
     >
-      {trace.reasoning && <p className={styles.tooltipReasoning}>{trace.reasoning}</p>}
+      {trace.reasoning && (
+        <p className={styles.tooltipReasoning}>
+          <strong>{trace.agentName}:</strong> {trace.reasoning}
+        </p>
+      )}
       <span className={styles.tooltipConfidence}>Confidence: {Math.round(trace.confidence * 100)}%</span>
     </span>,
     document.body,
@@ -66,7 +70,6 @@ export function PolicyChips({ policies, connectionStatus, onRemove }: PolicyChip
       <div className={styles.header}>
         <div>
           <p className={styles.eyebrow}>Active Policies</p>
-          <h2 className={styles.title}>Policy registry</h2>
         </div>
         <span className={styles.status}>Socket {connectionStatus}</span>
       </div>

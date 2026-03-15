@@ -209,7 +209,7 @@ function OfficeSlab({
 
 function RogersCentre() {
   return (
-    <group position={[-2.35, 0.12, 1.2]}>
+    <group position={[-2.35, 0.28, 1.2]}>
       <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[2.45, 2.75, 0.56, 48]} />
         <meshStandardMaterial color="#d7dddc" />
@@ -773,7 +773,7 @@ function SkylineCore({ scenario, energyHealth, fiscalHealth }: { scenario: Scena
       <CondoStack x={9.5} z={0.4} height={8.0} peakEnergy={retail.peakEnergy} width={0.9} energyHealth={energyHealth} fiscalHealth={fiscalHealth} />
 
 
-      <CondoStack x={-0.35} z={1.4} height={4.9} peakEnergy={plaza.peakEnergy} width={0.72} energyHealth={energyHealth} fiscalHealth={fiscalHealth} />
+      <CondoStack x={-0.15} z={2.4} height={4.9} peakEnergy={plaza.peakEnergy} width={0.72} energyHealth={energyHealth} fiscalHealth={fiscalHealth} />
       <CondoStack x={1.55} z={1.7} height={4.4} peakEnergy={food.peakEnergy} width={0.74} energyHealth={energyHealth} fiscalHealth={fiscalHealth} />
       <CondoStack x={5.65} z={1.45} height={4.7} peakEnergy={charging.peakEnergy} width={0.74} energyHealth={energyHealth} fiscalHealth={fiscalHealth} />
     </group>
@@ -868,7 +868,7 @@ function DistrictScene({ scenario }: { scenario: ScenarioState }) {
         enablePan={false}
         minDistance={15}
         maxDistance={35}
-        maxPolarAngle={Math.PI / 2}  // Prevents panning below the surface
+        maxPolarAngle={Math.PI / 2 - 0.1}  // Prevents panning below the surface
         minAzimuthAngle={-Math.PI / 2}  // Prevents camera from rotating too far to the left
         maxAzimuthAngle={Math.PI / 2}  // Prevents camera from rotating too far to the right
         target={[0.5, 4.1, 0.9]}

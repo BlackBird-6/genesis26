@@ -5,11 +5,12 @@ import { useScenarioStore } from "../store/scenario-store";
 import styles from "./chat-sidebar.module.css";
 
 const quickPrompts = [
-  "What if we shift 35% of EV charging to off-peak?",
+  "Eliminate all TTC transit fares every Friday.",
   "Add 3 cooling centers in the highest-risk areas.",
-  "Subsidize transit and reduce car traffic by 20%.",
-  "Reduce food waste in restaurants by 20%.",
-  "What's the best package to reduce emissions without worsening equity?",
+  "Mandate solar-generating canopies for all parking lots over 50 spaces.",
+  "Ban natural gas connections in all new residential builds.",
+  "Mandate zero-food-waste organic composting for all restaurants.",
+  "Impose a $50 per tonne local carbon levy on large commercial facilities.",
 ];
 
 export function ChatSidebar() {
@@ -45,7 +46,6 @@ export function ChatSidebar() {
   }
 
   function handleQuickPrompt(prompt: string) {
-    setDraft(prompt);
     startTransition(() => {
       void applyPrompt(prompt);
     });
