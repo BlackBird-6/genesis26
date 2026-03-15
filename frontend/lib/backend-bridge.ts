@@ -36,14 +36,21 @@ export type BackendCityState = {
   timestamp: string;
 };
 
-export type BackendEvent =
-  | { type: "agent_result"; data: BackendAgentResult }
-  | { type: "policy_added"; data: { policy_id: string; policy_text: string; agent_results: BackendAgentResult[] } }
-  | { type: "policy_removed"; data: { policy_id: string } }
-  | { type: "policy_list"; data: { policies: BackendPolicyRecord[]; city_state: BackendCityState } }
-  | { type: "city_state"; data: BackendCityState }
-  | { type: "uncertain_prediction"; data: { confidence_score: number; message: string } }
-  | { type: "error"; data: { message: string; traceback?: string } };
+export type AddPolicyResponse = {
+  policy_id: string;
+  policy_text: string;
+  agent_results: BackendAgentResult[];
+  city_state: BackendCityState;
+};
+
+export type ListPoliciesResponse = {
+  policies: BackendPolicyRecord[];
+  city_state: BackendCityState;
+};
+
+export type StateResponse = {
+  city_state: BackendCityState;
+};
 
 // ---------------------------------------------------------------------------
 // Static zone positions — layout is fixed, values are driven by backend
@@ -126,14 +133,13 @@ export function normalisePolicyRecord(record: BackendPolicyRecord): ActivePolicy
   };
 }
 
-export function getWebSocketUrl() {
+export function getApiUrl() {
   if (typeof window === "undefined") {
     return "";
   }
-  const explicit = process.env.NEXT_PUBLIC_SIM_WS_URL;
+  const explicit = process.env.NEXT_PUBLIC_SIM_API_URL;
   if (explicit) {
     return explicit;
   }
-  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${protocol}//${window.location.hostname}:8000/ws/simulation`;
+  return `${window.location.protocol}//${window.location.hostname}:8000/api/simulation`;
 }

@@ -4,11 +4,13 @@ import { create } from "zustand";
 import {
   baselineScenario,
   buildScenarioFromBackend,
-  getWebSocketUrl,
+  getApiUrl,
   normalisePolicyRecord,
+  type AddPolicyResponse,
   type BackendCityState,
-  type BackendEvent,
   type BackendPolicyRecord,
+  type ListPoliciesResponse,
+  type StateResponse,
 } from "../lib/backend-bridge";
 import type { ActivePolicyRecord, ChatMessage, ConnectionStatus, ScenarioState, ThoughtTrace } from "../lib/types";
 
@@ -19,11 +21,10 @@ type ScenarioStore = {
   traces: ThoughtTrace[];
   connectionStatus: ConnectionStatus;
   confidenceScore: number;
-  socket: WebSocket | null;
   isApplying: boolean;
-  init: () => void;
+  init: () => Promise<void>;
   applyPrompt: (prompt: string) => Promise<void>;
-  removePolicy: (policyId: string) => void;
+  removePolicy: (policyId: string) => Promise<void>;
 };
 
 const initialMessages: ChatMessage[] = [
@@ -66,130 +67,46 @@ export const useScenarioStore = create<ScenarioStore>((set, get) => ({
   traces: [],
   connectionStatus: "connecting",
   confidenceScore: 0.5,
-  socket: null,
   isApplying: false,
 
-  init() {
+  async init() {
     if (typeof window === "undefined") return;
 
-    const existing = get().socket;
-    if (existing && (existing.readyState === WebSocket.OPEN || existing.readyState === WebSocket.CONNECTING)) {
+    if (get().connectionStatus === "connected") {
       return;
     }
 
-    const ws = new WebSocket(getWebSocketUrl());
-    set({ socket: ws, connectionStatus: "connecting" });
+    try {
+      const apiUrl = getApiUrl();
+      const res = await fetch(`${apiUrl}/state`);
+      if (!res.ok) throw new Error("Failed to load initial state");
 
-    ws.onopen = () => {
+      const data: ListPoliciesResponse = await res.json();
+      
       set((state) => ({
         connectionStatus: "connected",
+        ...syncFromPolicyList(data.policies, data.city_state),
         messages:
           state.messages.length === initialMessages.length
-            ? [...state.messages, systemMessage("Backend connected. Loading active policies and aggregate state.")]
+            ? [
+                ...state.messages,
+                systemMessage("Backend connected. Loading active policies and aggregate state."),
+                assistantMessage(`Loaded ${data.policies.length} active policies from the backend.`),
+              ]
             : state.messages,
       }));
-      ws.send(JSON.stringify({ action: "list_policies" }));
-    };
-
-    ws.onclose = () => {
-      set({ connectionStatus: "disconnected", socket: null, isApplying: false });
-      window.setTimeout(() => get().init(), 2000);
-    };
-
-    ws.onerror = () => {
-      set({ connectionStatus: "error" });
-    };
-
-    ws.onmessage = (event) => {
-      const payload: BackendEvent = JSON.parse(event.data);
-
-      if (payload.type === "policy_list") {
-        set((state) => ({
-          ...syncFromPolicyList(payload.data.policies, payload.data.city_state),
-          messages:
-            state.messages.length > initialMessages.length
-              ? state.messages
-              : [...state.messages, assistantMessage(`Loaded ${payload.data.policies.length} active policies from the backend.`)],
-        }));
-        return;
-      }
-
-      if (payload.type === "agent_result") {
-        const latestPolicy = get().policies[0];
-        const trace: ThoughtTrace = {
-          id: makeId(),
-          policyId: latestPolicy?.policyId ?? "pending",
-          policyText: latestPolicy?.policyText ?? "",
-          agentName: payload.data.agent_name,
-          domain: payload.data.domain,
-          metricKey: payload.data.metric_key,
-          delta: payload.data.delta,
-          confidence: payload.data.confidence,
-          reasoning: payload.data.reasoning ?? "",
-        };
-        set((state) => ({
-          traces: [trace, ...state.traces].slice(0, 24),
-        }));
-        return;
-      }
-
-      if (payload.type === "policy_added") {
-        const record = normalisePolicyRecord({
-          policy_id: payload.data.policy_id,
-          policy_text: payload.data.policy_text,
-          agent_results: payload.data.agent_results,
-          timestamp: new Date().toISOString(),
-        });
-        set((state) => ({
-          policies: [record, ...state.policies],
-          traces: [...record.traces, ...state.traces].slice(0, 24),
-          isApplying: false,
-          messages: [
-            ...state.messages,
-            assistantMessage(`Policy added: "${record.label}" is now active.`),
-          ],
-        }));
-        return;
-      }
-
-      if (payload.type === "policy_removed") {
-        set((state) => ({
-          policies: state.policies.filter((policy) => policy.policyId !== payload.data.policy_id),
-          messages: [...state.messages, assistantMessage(`Policy removed. Aggregate city state updated.`)],
-        }));
-        return;
-      }
-
-      if (payload.type === "city_state") {
-        set({
-          scenario: buildScenarioFromBackend(payload.data),
-          confidenceScore: payload.data.confidence_score,
-          isApplying: false,
-        });
-        return;
-      }
-
-      if (payload.type === "uncertain_prediction") {
-        set((state) => ({
-          messages: [...state.messages, assistantMessage(payload.data.message)],
-        }));
-        return;
-      }
-
-      if (payload.type === "error") {
-        set((state) => ({
-          isApplying: false,
-          messages: [...state.messages, assistantMessage(`Backend error: ${payload.data.message}`)],
-        }));
-      }
-    };
+    } catch (err) {
+      console.error("Failed to connect to backend", err);
+      set((state) => ({
+        connectionStatus: "error",
+        messages: [...state.messages, assistantMessage("Backend connection is unavailable. Start the FastAPI service.")],
+      }));
+    }
   },
 
   async applyPrompt(prompt) {
     const text = prompt.trim();
     if (!text) return;
-
-    const ws = get().socket;
 
     set((state) => ({
       isApplying: true,
@@ -200,26 +117,74 @@ export const useScenarioStore = create<ScenarioStore>((set, get) => ({
       ],
     }));
 
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
+    try {
+      const apiUrl = getApiUrl();
+      const res = await fetch(`${apiUrl}/policy`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ policy: text }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Server returned ${res.status}`);
+      }
+
+      const data: AddPolicyResponse = await res.json();
+      
+      const record = normalisePolicyRecord({
+        policy_id: data.policy_id,
+        policy_text: data.policy_text,
+        agent_results: data.agent_results,
+        timestamp: new Date().toISOString(),
+      });
+
+      set((state) => ({
+        policies: [record, ...state.policies],
+        traces: [...record.traces, ...state.traces].slice(0, 24),
+        scenario: buildScenarioFromBackend(data.city_state),
+        confidenceScore: data.city_state.confidence_score,
+        isApplying: false,
+        messages: [
+          ...state.messages,
+          ...record.traces.map(ar => systemMessage(`Agent Result | ${ar.agentName} (${ar.domain}): delta ${ar.delta}`)),
+          assistantMessage(`Policy added: "${record.label}" is now active.`),
+          ...(data.city_state.confidence_score < 0.4 ? [assistantMessage("Uncertain prediction: low aggregate agent confidence.")] : []),
+        ],
+      }));
+    } catch (err) {
+      console.error(err);
       set((state) => ({
         isApplying: false,
         connectionStatus: "error",
-        messages: [...state.messages, assistantMessage("Backend connection is unavailable. Start the FastAPI service and reconnect.")],
+        messages: [...state.messages, assistantMessage(`Backend error: Could not apply policy.`)],
       }));
-      return;
     }
-
-    ws.send(JSON.stringify({ action: "add_policy", policy: text }));
   },
 
-  removePolicy(policyId) {
-    const ws = get().socket;
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
+  async removePolicy(policyId) {
+    try {
+      const apiUrl = getApiUrl();
+      const res = await fetch(`${apiUrl}/policy/${policyId}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        throw new Error(`Server returned ${res.status}`);
+      }
+
+      const data: StateResponse = await res.json();
+
+      set((state) => ({
+        policies: state.policies.filter((policy) => policy.policyId !== policyId),
+        scenario: buildScenarioFromBackend(data.city_state),
+        confidenceScore: data.city_state.confidence_score,
+        messages: [...state.messages, assistantMessage(`Policy removed. Aggregate city state updated.`)],
+      }));
+    } catch (err) {
+      console.error(err);
       set((state) => ({
         messages: [...state.messages, assistantMessage("Cannot remove policy while the backend connection is unavailable.")],
       }));
-      return;
     }
-    ws.send(JSON.stringify({ action: "remove_policy", policy_id: policyId }));
   },
 }));
