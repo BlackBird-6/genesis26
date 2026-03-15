@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState, useTransition } from "react";
+import { FormEvent, useState, useTransition, useEffect, useRef } from "react";
 import { useScenarioStore } from "../store/scenario-store";
 import styles from "./chat-sidebar.module.css";
 
@@ -20,6 +20,14 @@ export function ChatSidebar() {
   const [draft, setDraft] = useState("");
   const [isPending, startTransition] = useTransition();
   const hasUserPrompt = messages.some((message) => message.role === "user");
+
+  const threadRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (threadRef.current) {
+      threadRef.current.scrollTop = threadRef.current.scrollHeight;
+    }
+  }, [messages, isApplying, isPending]);
 
   function handleSubmit(event?: FormEvent<HTMLFormElement>) {
     if (event) {
@@ -52,7 +60,7 @@ export function ChatSidebar() {
         <p className={styles.connection}>Connection: {connectionStatus}</p>
       </div>
 
-      <div className={styles.thread}>
+      <div className={styles.thread} ref={threadRef}>
         {messages.map((message) => (
           <article className={`${styles.message} ${styles[message.role]}`} key={message.id}>
             <span className={styles.role}>{message.role}</span>

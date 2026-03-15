@@ -20,7 +20,7 @@ load_dotenv()
 
 API_KEY: str = os.getenv("OPENAI_API_KEY", "test")
 MODEL: str = "openai/gpt-oss-120b"
-API_URL: str = "https://vjioo4r1vyvcozuj.us-east-2.aws.endpoints.huggingface.cloud/v1/chat/completions"
+API_URL: str = "https://qyt7893blb71b5d3.us-east-2.aws.endpoints.huggingface.cloud/v1/chat/completions"
 
 # Shared async client — created lazily
 _client: httpx.AsyncClient | None = None

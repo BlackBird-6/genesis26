@@ -1,7 +1,7 @@
 "use client";
 
-import { Suspense } from "react";
-import { Canvas } from "@react-three/fiber";
+import { Suspense, useEffect, useRef } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Environment, Float, OrbitControls, PerspectiveCamera } from "@react-three/drei";
 import * as THREE from "three";
 import type { ScenarioState, ZoneState } from "../lib/types";
@@ -15,24 +15,131 @@ function colorLerp(cold: string, hot: string, amount: number) {
   return new THREE.Color(cold).lerp(new THREE.Color(hot), amount);
 }
 
+function useBuildingEffects(groupRef: React.RefObject<THREE.Group | null>, energyHealth: number, fiscalHealth: number, peakEnergy: number) {
+  const stateRef = useRef({
+    scaleY: 1.0,
+    glitchProb: 0.0,
+    staticWire: false,
+    emissiveHex: "#ffc370",
+    pulseSpeed: 0,
+    flickerProb: 0.0,
+  });
+
+  useEffect(() => {
+    let scaleY = 1.0;
+    let glitchProb = 0.0;
+    let staticWire = false;
+
+    if (fiscalHealth <= 0.2) {
+      scaleY = 0.40;
+    } else if (fiscalHealth <= 0.4) {
+      scaleY = 0.75;
+    } else if (fiscalHealth <= 0.6) {
+      scaleY = 1.0;
+    } else if (fiscalHealth <= 0.8) {
+      scaleY = 1.1;
+    } else {
+      scaleY = 1.25; // 40-100 tier (shine gloss handled in original props if desired, we stick to defaults)
+    }
+
+    let hex = "#ffc370";
+    let speed = 0;
+    let flick = 0;
+
+    if (energyHealth <= 0.2) {
+      hex = "#ff3300";
+      speed = 4;
+    } else if (energyHealth <= 0.4) {
+      hex = "#ff7700";
+      speed = 2;
+    } else if (energyHealth <= 0.6) {
+      hex = "#ffc370";
+    } else if (energyHealth <= 0.8) {
+      hex = "#ccffff";
+      speed = 2;
+    } else {
+      hex = "#00ffff";
+      speed = 4;
+    }
+
+    stateRef.current = { scaleY, glitchProb, staticWire, emissiveHex: hex, pulseSpeed: speed, flickerProb: flick };
+  }, [energyHealth, fiscalHealth]);
+
+  const colorCache = useRef(new THREE.Color());
+
+  useFrame((state, delta) => {
+    if (!groupRef.current) return;
+    const t = state.clock.elapsedTime;
+    const s = stateRef.current;
+
+    let targetScale = s.scaleY;
+    if (fiscalHealth > 0.4 && fiscalHealth <= 0.6) {
+      targetScale += Math.sin(t * 0.5) * 0.015; // Subtle breathing for steady state
+    }
+    groupRef.current.scale.y = THREE.MathUtils.damp(groupRef.current.scale.y, targetScale, 3, delta);
+
+    colorCache.current.lerp(new THREE.Color(s.emissiveHex), delta * 4);
+
+    let activeEmissive = peakEnergy * 0.4;
+    if (s.flickerProb > 0) {
+      activeEmissive = Math.random() > s.flickerProb ? peakEnergy * 0.4 : 0.05;
+    } else if (s.pulseSpeed > 0) {
+      activeEmissive = (peakEnergy * 0.4) + Math.sin(t * s.pulseSpeed) * 0.15;
+    } else {
+      if (energyHealth > 0.6 && energyHealth <= 0.8) activeEmissive = peakEnergy * 0.6;
+    }
+
+    groupRef.current.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const mat = (child as THREE.Mesh).material as THREE.MeshStandardMaterial;
+
+        if (s.glitchProb > 0) {
+          mat.wireframe = Math.random() < s.glitchProb;
+        } else {
+          mat.wireframe = s.staticWire;
+        }
+
+        const roughnessTarget = fiscalHealth > 0.8 ? 0.1 : 0.6;
+        mat.roughness = THREE.MathUtils.damp(mat.roughness, roughnessTarget, 2, delta);
+
+        if (child.userData.isWindow) {
+          mat.emissive.copy(colorCache.current);
+          if (s.flickerProb > 0) {
+            mat.emissiveIntensity = Math.max(0, activeEmissive);
+          } else {
+            mat.emissiveIntensity = THREE.MathUtils.damp(mat.emissiveIntensity, Math.max(0, activeEmissive), 4, delta);
+          }
+        }
+      }
+    });
+  });
+}
+
 function Tower({
   position,
   size,
   peakEnergy,
-  tint = "#687781",
+  tint = "#9ea7ac",
+  energyHealth = 0.5,
+  fiscalHealth = 0.5,
 }: {
   position: [number, number, number];
   size: [number, number, number];
   peakEnergy: number;
   tint?: string;
+  energyHealth?: number;
+  fiscalHealth?: number;
 }) {
-  const emissive = colorLerp("#4f7083", "#ff9357", peakEnergy);
+  const groupRef = useRef<THREE.Group>(null);
+  useBuildingEffects(groupRef, energyHealth, fiscalHealth, peakEnergy);
 
   return (
-    <mesh position={position} castShadow receiveShadow>
-      <boxGeometry args={size} />
-      <meshStandardMaterial color={tint} emissive={emissive} emissiveIntensity={0.18 + peakEnergy * 0.65} />
-    </mesh>
+    <group position={position} ref={groupRef}>
+      <mesh position={[0, size[1] / 2, 0]} castShadow receiveShadow userData={{ isWindow: true }}>
+        <boxGeometry args={size} />
+        <meshStandardMaterial color={tint} />
+      </mesh>
+    </group>
   );
 }
 
@@ -42,14 +149,28 @@ function CondoStack({
   height,
   peakEnergy,
   width = 0.8,
+  energyHealth = 0.5,
+  fiscalHealth = 0.5,
 }: {
   x: number;
   z: number;
   height: number;
   peakEnergy: number;
   width?: number;
+  energyHealth?: number;
+  fiscalHealth?: number;
 }) {
-  return <Tower position={[x, height / 2, z]} size={[width, height, width]} peakEnergy={peakEnergy} tint="#60707b" />;
+  const groupRef = useRef<THREE.Group>(null);
+  useBuildingEffects(groupRef, energyHealth, fiscalHealth, peakEnergy);
+
+  return (
+    <group position={[x, 0, z]} ref={groupRef}>
+      <mesh position={[0, height / 2, 0]} castShadow receiveShadow userData={{ isWindow: true }}>
+        <boxGeometry args={[width, height, width]} />
+        <meshStandardMaterial color="#60707b" />
+      </mesh>
+    </group>
+  );
 }
 
 function OfficeSlab({
@@ -59,7 +180,9 @@ function OfficeSlab({
   depth,
   height,
   peakEnergy,
-  tint = "#6e7f88",
+  tint = "#84949b",
+  energyHealth = 0.5,
+  fiscalHealth = 0.5,
 }: {
   x: number;
   z: number;
@@ -68,8 +191,20 @@ function OfficeSlab({
   height: number;
   peakEnergy: number;
   tint?: string;
+  energyHealth?: number;
+  fiscalHealth?: number;
 }) {
-  return <Tower position={[x, height / 2, z]} size={[width, height, depth]} peakEnergy={peakEnergy} tint={tint} />;
+  const groupRef = useRef<THREE.Group>(null);
+  useBuildingEffects(groupRef, energyHealth, fiscalHealth, peakEnergy);
+
+  return (
+    <group position={[x, 0, z]} ref={groupRef}>
+      <mesh position={[0, height / 2, 0]} castShadow receiveShadow userData={{ isWindow: true }}>
+        <boxGeometry args={[width, height, depth]} />
+        <meshStandardMaterial color={tint} />
+      </mesh>
+    </group>
+  );
 }
 
 function RogersCentre() {
@@ -133,7 +268,7 @@ function CityHallComplex({ peakEnergy }: { peakEnergy: number }) {
 
 function GooderhamFlatiron() {
   return (
-    <group position={[-1.9, 0, 2.55]}>
+    <group position={[4.5, 0, 2.2]}>
       <mesh position={[0, 0.7, 0]} castShadow receiveShadow>
         <boxGeometry args={[0.55, 1.4, 1.25]} />
         <meshStandardMaterial color="#9d4930" />
@@ -207,27 +342,266 @@ function StreetcarAndTracks({ transit }: { transit: number }) {
   );
 }
 
+function AnimatedTraffic({ health }: { health: number }) {
+  const meshRef = useRef<THREE.InstancedMesh>(null);
+  const count = 40;
+
+  const cars = useRef(Array.from({ length: count }, () => ({
+    x: (Math.random() - 0.5) * 18,
+    z: (Math.random() - 0.5) * 0.3,
+    speed: Math.random() * 0.4 + 0.8,
+  })));
+
+  const targetRef = useRef({ speedMult: 1, color: new THREE.Color(), density: 40 });
+  const currentRef = useRef({ speedMult: 1, color: new THREE.Color() });
+
+  useEffect(() => {
+    let speedMult = 1.0;
+    let colorHex = "#ffedd9";
+    let density = 15;
+
+    if (health <= 0.2) {
+      speedMult = 0.0;
+      colorHex = "#ff1100"; // Gridlock red
+      density = 40;
+    } else if (health <= 0.4) {
+      speedMult = 0.15; // Stuttering
+      colorHex = "#ff3311";
+      density = 35;
+    } else if (health <= 0.6) {
+      speedMult = 0.4; // Steady default
+      colorHex = "#ff6622";
+      density = 25;
+    } else if (health <= 0.8) {
+      speedMult = 0.7; // Moderate
+      colorHex = "#ffa366";
+      density = 20;
+    } else {
+      speedMult = 1.6; // Fast flow
+      colorHex = "#ffffff";
+      density = 12;
+    }
+
+    targetRef.current = { speedMult, color: new THREE.Color(colorHex), density };
+  }, [health]);
+
+  const dummy = new THREE.Object3D();
+
+  useFrame((state, delta) => {
+    if (!meshRef.current) return;
+
+    currentRef.current.speedMult = THREE.MathUtils.damp(currentRef.current.speedMult, targetRef.current.speedMult, 3, delta);
+    currentRef.current.color.lerp(targetRef.current.color, delta * 3);
+
+    const stutterPhase = Math.sin(state.clock.elapsedTime * 3);
+    let activeSpeed = currentRef.current.speedMult;
+    if (targetRef.current.density === 35) {
+      activeSpeed *= Math.max(0, stutterPhase); // stop and go
+    }
+
+    cars.current.forEach((car, i) => {
+      if (i >= targetRef.current.density) {
+        dummy.position.set(100, 100, 100);
+      } else {
+        car.x -= car.speed * activeSpeed * delta * 5;
+        if (car.x < -9) car.x = 9;
+        dummy.position.set(car.x, 0.08, car.z);
+      }
+      dummy.updateMatrix();
+      meshRef.current!.setMatrixAt(i, dummy.matrix);
+      meshRef.current!.setColorAt(i, currentRef.current.color);
+    });
+
+    meshRef.current.instanceMatrix.needsUpdate = true;
+    if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true;
+  });
+
+  return (
+    <instancedMesh ref={meshRef} args={[undefined, undefined, count]}>
+      <boxGeometry args={[0.3, 0.06, 0.12]} />
+      <meshStandardMaterial emissiveIntensity={1.5} />
+    </instancedMesh>
+  );
+}
+
+function VitalityField({ equity: health }: { equity: number }) {
+  const count = 150;
+  const meshRef = useRef<THREE.InstancedMesh>(null);
+
+  const particles = useRef(Array.from({ length: count }, () => ({
+    x: (Math.random() - 0.5) * 26,
+    z: (Math.random() - 0.5) * 18,
+    y: Math.random() * 4,
+    speed: Math.random() * 0.6 + 0.3,
+    phase: Math.random() * Math.PI * 2,
+  })));
+
+  const targetRef = useRef({ density: 0, color: new THREE.Color(), emissiveIntensity: 1 });
+  const currentRef = useRef({ color: new THREE.Color(), emissiveIntensity: 1 });
+
+  useEffect(() => {
+    let density = 0;
+    let colorHex = "#ffffff";
+    let emissiveInt = 1;
+
+    if (health <= 0.2) {
+      density = 150; // Dense low hovering grey
+      colorHex = "#333333";
+      emissiveInt = 0.2;
+    } else if (health <= 0.4) {
+      density = 0;
+    } else if (health <= 0.6) {
+      density = 0;
+    } else if (health <= 0.8) {
+      density = 60; // Sparse gold
+      colorHex = "#ffaa00";
+      emissiveInt = 1.4;
+    } else {
+      density = 150; // Abundant gold
+      colorHex = "#ffcc00";
+      emissiveInt = 1.8;
+    }
+    targetRef.current = { density, color: new THREE.Color(colorHex), emissiveIntensity: emissiveInt };
+  }, [health]);
+
+  const dummy = new THREE.Object3D();
+
+  useFrame((state, delta) => {
+    if (!meshRef.current) return;
+    currentRef.current.color.lerp(targetRef.current.color, delta * 2);
+    currentRef.current.emissiveIntensity = THREE.MathUtils.damp(currentRef.current.emissiveIntensity, targetRef.current.emissiveIntensity, 3, delta);
+
+    particles.current.forEach((p, i) => {
+      if (i >= targetRef.current.density) {
+        dummy.position.set(0, -10, 0);
+      } else {
+        if (health <= 0.2) {
+          // Low hovering static noise
+          p.x += Math.sin(p.phase + state.clock.elapsedTime) * 0.005;
+          p.z += Math.cos(p.phase + state.clock.elapsedTime) * 0.005;
+          dummy.position.set(p.x, p.y * 0.3 + 0.2, p.z);
+        } else {
+          // Rising golden particles
+          p.y += p.speed * delta;
+          if (p.y > 6) p.y = 0;
+          const drift = Math.sin(p.phase + p.y) * 0.2;
+          dummy.position.set(p.x + drift, p.y, p.z);
+        }
+      }
+      dummy.updateMatrix();
+      meshRef.current!.setMatrixAt(i, dummy.matrix);
+      meshRef.current!.setColorAt(i, currentRef.current.color);
+    });
+
+    meshRef.current.instanceMatrix.needsUpdate = true;
+    if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true;
+    (meshRef.current.material as THREE.MeshStandardMaterial).emissiveIntensity = currentRef.current.emissiveIntensity;
+  });
+
+  return (
+    <instancedMesh ref={meshRef} args={[null as any, null as any, count]} frustumCulled={false}>
+      <sphereGeometry args={[0.18, 12, 12]} />
+      <meshStandardMaterial transparent opacity={0.8} depthWrite={false} />
+    </instancedMesh>
+  );
+}
+
+function AnimatedBasePlane({ equity }: { equity: number }) {
+  const matRef = useRef<THREE.MeshStandardMaterial>(null);
+
+  const targetColor = useRef(new THREE.Color("#727d84"));
+
+  useEffect(() => {
+    let hex = "#727d84";
+    if (equity <= 0.2) hex = "#444a4d";
+    else if (equity <= 0.4) hex = "#5a6266";
+    else if (equity <= 0.6) hex = "#727d84"; // Default
+    else if (equity <= 0.8) hex = "#828980";
+    else hex = "#959b8e";
+
+    targetColor.current.set(hex);
+  }, [equity]);
+
+  useFrame((_, delta) => {
+    if (matRef.current) {
+      matRef.current.color.lerp(targetColor.current, delta * 2);
+    }
+  });
+
+  return (
+    <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      <planeGeometry args={[28, 20]} />
+      <meshStandardMaterial ref={matRef} color="#727d84" />
+    </mesh>
+  );
+}
+
+function AnimatedSky({ health }: { health: number }) {
+  const { scene } = useThree();
+  const targetColor = useRef(new THREE.Color("#f4d8b2"));
+  const currentColor = useRef(new THREE.Color("#f4d8b2"));
+
+  useEffect(() => {
+    // 1.0 = blue clear sky, 0.0 = bright orange smog
+    let hex = "#7ebdd4";
+    if (health <= 0.2) hex = "#d9824c"; // heavy smog
+    else if (health <= 0.4) hex = "#e1b37a";
+    else if (health <= 0.6) hex = "#e0cba8"; // default neutral
+    else if (health <= 0.8) hex = "#b8cfd6";
+    else hex = "#7ebdd4";
+    targetColor.current.set(hex);
+  }, [health]);
+
+  useFrame((_, delta) => {
+    currentColor.current.lerp(targetColor.current, delta * 1.5);
+    scene.background = currentColor.current;
+  });
+
+  return null;
+}
+
 function CnTower() {
   return (
     <group position={[0.55, 0, 0.9]}>
+      {/* Main shaft */}
       <mesh position={[0, 6.4, 0]} castShadow>
-        <cylinderGeometry args={[0.13, 0.26, 12.8, 18]} />
+        <cylinderGeometry args={[0.16, 0.32, 12.8, 18]} />
         <meshStandardMaterial color="#8f8d86" />
       </mesh>
-      <mesh position={[0, 9.3, 0]}>
-        <cylinderGeometry args={[0.84, 1.1, 0.44, 28]} />
-        <meshStandardMaterial color="#d2cbc0" emissive="#ffd6a1" emissiveIntensity={0.08} />
+
+      {/* Main Pod - Lower radome (slopes out) */}
+      <mesh position={[0, 9.1, 0]}>
+        <cylinderGeometry args={[1.05, 0.35, 0.8, 32]} />
+        <meshStandardMaterial color="#d2cbc0" />
       </mesh>
-      <mesh position={[0, 8.75, 0]}>
-        <cylinderGeometry args={[0.38, 0.5, 0.88, 18]} />
-        <meshStandardMaterial color="#7d796f" />
+
+      {/* Main Pod - Observation deck (dark with windows) */}
+      <mesh position={[0, 9.65, 0]}>
+        <cylinderGeometry args={[1.1, 1.05, 0.3, 32]} />
+        <meshStandardMaterial color="#4a5a66" emissive="#ffd6a1" emissiveIntensity={0.2} />
       </mesh>
-      <mesh position={[0, 12.3, 0]}>
-        <cylinderGeometry args={[0.05, 0.06, 4.2, 10]} />
+
+      {/* Main Pod - Roof (saucer) */}
+      <mesh position={[0, 9.8, 0]} scale={[1, 0.25, 1]}>
+        <sphereGeometry args={[1.1, 32, 16]} />
+        <meshStandardMaterial color="#b5b0a7" />
+      </mesh>
+
+      {/* Skypod */}
+      <mesh position={[0, 11.2, 0]}>
+        <cylinderGeometry args={[0.3, 0.15, 0.45, 24]} />
+        <meshStandardMaterial color="#d2cbc0" emissive="#ffd6a1" emissiveIntensity={0.15} />
+      </mesh>
+
+      {/* Antenna base */}
+      <mesh position={[0, 12.8, 0]}>
+        <cylinderGeometry args={[0.06, 0.1, 2.0, 10]} />
         <meshStandardMaterial color="#2d3135" />
       </mesh>
-      <mesh position={[0, 13.85, 0]}>
-        <cylinderGeometry args={[0.016, 0.016, 1.05, 8]} />
+
+      {/* Antenna spire */}
+      <mesh position={[0, 14.5, 0]}>
+        <cylinderGeometry args={[0.012, 0.04, 3.2, 8]} />
         <meshStandardMaterial color="#1c2023" />
       </mesh>
     </group>
@@ -280,19 +654,14 @@ function RailCorridor({ traffic }: { traffic: number }) {
   );
 }
 
-function GardinerFrontage({ traffic }: { traffic: number }) {
+function GardinerFrontage({ congestion }: { congestion: number }) {
   return (
     <group position={[0, 0.5, 3.7]}>
       <mesh receiveShadow>
         <boxGeometry args={[18, 0.14, 0.5]} />
-        <meshStandardMaterial color="#8b8c90" emissive="#ff8852" emissiveIntensity={traffic * 0.14} />
+        <meshStandardMaterial color="#8b8c90" />
       </mesh>
-      {[-7.5, -4.5, -1.5, 1.6, 4.8, 7.4].map((x, index) => (
-        <mesh key={index} position={[x, -0.42, 0]} receiveShadow>
-          <boxGeometry args={[0.16, 0.84, 0.16]} />
-          <meshStandardMaterial color="#7a7d81" />
-        </mesh>
-      ))}
+      <AnimatedTraffic health={congestion} />
     </group>
   );
 }
@@ -335,51 +704,78 @@ function ChargerStrip({ zone }: { zone: ZoneState }) {
   );
 }
 
-function ForegroundCondos({ peaks }: { peaks: number[] }) {
+function ForegroundCondos({ peaks, energyHealth, fiscalHealth }: { peaks: number[], energyHealth: number, fiscalHealth: number }) {
   return (
     <group>
-      <CondoStack x={-7.3} z={2.8} height={4.8} peakEnergy={peaks[0]} width={0.9} />
-      <CondoStack x={-6.35} z={2.25} height={4.2} peakEnergy={peaks[0]} width={0.8} />
-      <CondoStack x={-5.45} z={2.95} height={5.2} peakEnergy={peaks[1]} width={0.86} />
-      <CondoStack x={3.9} z={2.75} height={5.9} peakEnergy={peaks[2]} width={0.92} />
-      <CondoStack x={5.0} z={2.5} height={5.5} peakEnergy={peaks[2]} width={0.86} />
-      <CondoStack x={6.0} z={2.3} height={4.9} peakEnergy={peaks[2]} width={0.78} />
-      <CondoStack x={7.0} z={2.0} height={4.3} peakEnergy={peaks[1]} width={0.74} />
+      {/* Far Left Condos */}
+      <CondoStack x={-10.2} z={2.3} height={4.5} peakEnergy={peaks[1]} width={0.8} energyHealth={energyHealth} fiscalHealth={fiscalHealth} />
+      <CondoStack x={-9.4} z={2.9} height={5.5} peakEnergy={peaks[0]} width={0.85} energyHealth={energyHealth} fiscalHealth={fiscalHealth} />
+      <CondoStack x={-8.5} z={2.6} height={4.0} peakEnergy={peaks[2]} width={0.75} energyHealth={energyHealth} fiscalHealth={fiscalHealth} />
+
+      {/* Original Left */}
+      <CondoStack x={-7.3} z={2.8} height={4.8} peakEnergy={peaks[0]} width={0.9} energyHealth={energyHealth} fiscalHealth={fiscalHealth} />
+      <CondoStack x={-6.35} z={2.25} height={4.2} peakEnergy={peaks[0]} width={0.8} energyHealth={energyHealth} fiscalHealth={fiscalHealth} />
+      <CondoStack x={-5.45} z={2.95} height={5.2} peakEnergy={peaks[1]} width={0.86} energyHealth={energyHealth} fiscalHealth={fiscalHealth} />
+
+      {/* Original Right */}
+      <CondoStack x={3.9} z={2.75} height={5.9} peakEnergy={peaks[2]} width={0.92} energyHealth={energyHealth} fiscalHealth={fiscalHealth} />
+      <CondoStack x={5.0} z={2.5} height={5.5} peakEnergy={peaks[2]} width={0.86} energyHealth={energyHealth} fiscalHealth={fiscalHealth} />
+      <CondoStack x={6.0} z={2.3} height={4.9} peakEnergy={peaks[2]} width={0.78} energyHealth={energyHealth} fiscalHealth={fiscalHealth} />
+      <CondoStack x={7.0} z={2.0} height={4.3} peakEnergy={peaks[1]} width={0.74} energyHealth={energyHealth} fiscalHealth={fiscalHealth} />
+
+      {/* Far Right Condos */}
+      <CondoStack x={8.2} z={2.4} height={5.8} peakEnergy={peaks[2]} width={0.88} energyHealth={energyHealth} fiscalHealth={fiscalHealth} />
+      <CondoStack x={9.1} z={2.7} height={4.9} peakEnergy={peaks[1]} width={0.82} energyHealth={energyHealth} fiscalHealth={fiscalHealth} />
+      <CondoStack x={10.0} z={2.1} height={4.2} peakEnergy={peaks[0]} width={0.75} energyHealth={energyHealth} fiscalHealth={fiscalHealth} />
     </group>
   );
 }
 
-function SkylineCore({ scenario }: { scenario: ScenarioState }) {
+function SkylineCore({ scenario, energyHealth, fiscalHealth }: { scenario: ScenarioState, energyHealth: number, fiscalHealth: number }) {
   const [financial, residential, retail, transit, plaza, charging, food] = scenario.zones;
 
   return (
     <group>
-      <OfficeSlab x={-6.65} z={0.7} width={1.05} depth={1.0} height={7.6} peakEnergy={financial.peakEnergy} tint="#52606a" />
-      <CondoStack x={-5.55} z={0.35} height={6.8} peakEnergy={residential.peakEnergy} width={0.92} />
-      <CondoStack x={-4.6} z={0.15} height={7.2} peakEnergy={residential.peakEnergy} width={0.84} />
+      {/* Far Left Core */}
+      <OfficeSlab x={-9.0} z={0.2} width={1.2} depth={1.0} height={7.5} peakEnergy={residential.peakEnergy} tint="#60717a" energyHealth={energyHealth} fiscalHealth={fiscalHealth} />
+      <CondoStack x={-8.0} z={0.5} height={6.5} peakEnergy={transit.peakEnergy} width={0.8} energyHealth={energyHealth} fiscalHealth={fiscalHealth} />
+
+      {/* Original Core Left */}
+      <OfficeSlab x={-6.65} z={0.7} width={1.05} depth={1.0} height={7.6} peakEnergy={financial.peakEnergy} tint="#52606a" energyHealth={energyHealth} fiscalHealth={fiscalHealth} />
+      <CondoStack x={-5.55} z={0.35} height={6.8} peakEnergy={residential.peakEnergy} width={0.92} energyHealth={energyHealth} fiscalHealth={fiscalHealth} />
+      <CondoStack x={-4.6} z={0.15} height={7.2} peakEnergy={residential.peakEnergy} width={0.84} energyHealth={energyHealth} fiscalHealth={fiscalHealth} />
 
       <Tower
-        position={[-2.05, 5.0, 0.1]}
+        position={[-2.45, 0, -1.8]}
         size={[0.95, 10.0, 0.95]}
         peakEnergy={retail.peakEnergy}
         tint="#76a5ae"
+        energyHealth={energyHealth}
+        fiscalHealth={fiscalHealth}
       />
       <Tower
-        position={[-1.05, 6.15, -0.05]}
+        position={[-1.25, 0, -2.0]}
         size={[1.02, 12.3, 1.0]}
         peakEnergy={retail.peakEnergy}
         tint="#81b9c2"
+        energyHealth={energyHealth}
+        fiscalHealth={fiscalHealth}
       />
 
-      <OfficeSlab x={2.15} z={-0.15} width={1.2} depth={0.95} height={8.5} peakEnergy={financial.peakEnergy} tint="#6f848e" />
-      <OfficeSlab x={3.55} z={-0.22} width={1.0} depth={0.9} height={7.6} peakEnergy={financial.peakEnergy} tint="#84949b" />
-      <OfficeSlab x={4.95} z={0} width={1.55} depth={1.05} height={11.2} peakEnergy={financial.peakEnergy} tint="#6f8f9c" />
-      <OfficeSlab x={6.75} z={0.22} width={1.2} depth={0.9} height={8.7} peakEnergy={charging.peakEnergy} tint="#8aa0a8" />
+      {/* Original Core Right */}
+      <OfficeSlab x={2.15} z={-0.15} width={1.2} depth={0.95} height={8.5} peakEnergy={financial.peakEnergy} tint="#6f848e" energyHealth={energyHealth} fiscalHealth={fiscalHealth} />
+      <OfficeSlab x={3.55} z={-0.22} width={1.0} depth={0.9} height={7.6} peakEnergy={financial.peakEnergy} tint="#84949b" energyHealth={energyHealth} fiscalHealth={fiscalHealth} />
+      <OfficeSlab x={4.95} z={0} width={1.55} depth={1.05} height={11.2} peakEnergy={financial.peakEnergy} tint="#6f8f9c" energyHealth={energyHealth} fiscalHealth={fiscalHealth} />
+      <OfficeSlab x={6.75} z={0.22} width={1.2} depth={0.9} height={8.7} peakEnergy={charging.peakEnergy} tint="#8aa0a8" energyHealth={energyHealth} fiscalHealth={fiscalHealth} />
 
-      <CondoStack x={-3.6} z={1.1} height={5.1} peakEnergy={transit.peakEnergy} width={0.76} />
-      <CondoStack x={-0.35} z={1.4} height={4.9} peakEnergy={plaza.peakEnergy} width={0.72} />
-      <CondoStack x={1.55} z={1.7} height={4.4} peakEnergy={food.peakEnergy} width={0.74} />
-      <CondoStack x={5.65} z={1.45} height={4.7} peakEnergy={charging.peakEnergy} width={0.74} />
+      {/* Far Right Core */}
+      <OfficeSlab x={8.2} z={0.1} width={1.4} depth={1.1} height={9.5} peakEnergy={financial.peakEnergy} tint="#6f8f9c" energyHealth={energyHealth} fiscalHealth={fiscalHealth} />
+      <CondoStack x={9.5} z={0.4} height={8.0} peakEnergy={retail.peakEnergy} width={0.9} energyHealth={energyHealth} fiscalHealth={fiscalHealth} />
+
+
+      <CondoStack x={-0.35} z={1.4} height={4.9} peakEnergy={plaza.peakEnergy} width={0.72} energyHealth={energyHealth} fiscalHealth={fiscalHealth} />
+      <CondoStack x={1.55} z={1.7} height={4.4} peakEnergy={food.peakEnergy} width={0.74} energyHealth={energyHealth} fiscalHealth={fiscalHealth} />
+      <CondoStack x={5.65} z={1.45} height={4.7} peakEnergy={charging.peakEnergy} width={0.74} energyHealth={energyHealth} fiscalHealth={fiscalHealth} />
     </group>
   );
 }
@@ -402,16 +798,69 @@ function HeatBands({ zones }: { zones: ZoneState[] }) {
   );
 }
 
+function AnimatedFog({ health }: { health: number }) {
+  const { scene } = useThree();
+  const targetRef = useRef<{ near: number; far: number }>({ near: 34, far: 65 });
+  const startRef = useRef<{ near: number; far: number }>({ near: 34, far: 65 });
+  const timeRef = useRef<number>(1.5);
+
+  useEffect(() => {
+    let targetNear = 25;
+    let targetFar = 85;
+
+    if (health <= 0.2) {
+      targetNear = 5;
+      targetFar = 42;
+    } else if (health <= 0.4) {
+      targetNear = 10;
+      targetFar = 50;
+    } else if (health <= 0.6) {
+      targetNear = 15;
+      targetFar = 60;
+    } else if (health <= 0.8) {
+      targetNear = 20;
+      targetFar = 70;
+    }
+
+    const fog = scene.fog as any;
+    if (fog && fog.isFog) {
+      startRef.current = { near: fog.near, far: fog.far };
+      targetRef.current = { near: targetNear, far: targetFar };
+      timeRef.current = 0;
+    }
+  }, [health, scene]);
+
+  useFrame((_, delta) => {
+    const fog = scene.fog as any;
+    if (fog && fog.isFog && timeRef.current < 1.5) {
+      timeRef.current += delta;
+      const t = Math.min(timeRef.current / 1.5, 1.0);
+      const ease = 1 - Math.pow(1 - t, 3); // Ease-out cubic
+
+      fog.near = THREE.MathUtils.lerp(startRef.current.near, targetRef.current.near, ease);
+      fog.far = THREE.MathUtils.lerp(startRef.current.far, targetRef.current.far, ease);
+    }
+  });
+
+  return <fog attach="fog" args={["#f4d8b2", 30, 55]} />;
+}
+
 function DistrictScene({ scenario }: { scenario: ScenarioState }) {
   const averageTraffic = scenario.zones.reduce((sum, zone) => sum + zone.trafficLevel, 0) / scenario.zones.length;
   const averageTransit = scenario.zones.reduce((sum, zone) => sum + zone.transitLevel, 0) / scenario.zones.length;
   const chargerZone = scenario.zones.find((zone) => zone.districtType === "charging");
   const civicPeak = scenario.zones[0]?.peakEnergy ?? 0.5;
 
+  const equityScore = scenario.aggregate.equityScore / 100;
+  const congestionScore = scenario.aggregate.congestion / 100;
+  const energyScore = scenario.aggregate.peakDemand / 100;
+  const costScore = scenario.aggregate.cost / 100;
+  const peaks = [scenario.zones[1].peakEnergy, scenario.zones[0].peakEnergy, scenario.zones[2].peakEnergy];
+
   return (
     <>
-      <color attach="background" args={["#f4d8b2"]} />
-      <fog attach="fog" args={["#f4d8b2", 30, 55]} />
+      <AnimatedSky health={scenario.aggregate.emissions / 100} />
+      <AnimatedFog health={scenario.aggregate.emissions / 100} />
       <ambientLight intensity={0.9} />
       <directionalLight intensity={2.7} position={[8, 16, 12]} castShadow shadow-mapSize-width={1024} shadow-mapSize-height={1024} />
       <PerspectiveCamera makeDefault position={[0, 11.8, 17.8]} fov={27} />
@@ -422,22 +871,20 @@ function DistrictScene({ scenario }: { scenario: ScenarioState }) {
         maxPolarAngle={Math.PI / 2}  // Prevents panning below the surface
         minAzimuthAngle={-Math.PI / 2}  // Prevents camera from rotating too far to the left
         maxAzimuthAngle={Math.PI / 2}  // Prevents camera from rotating too far to the right
-        target={[0.2, 5.1, 0.7]}
+        target={[0.5, 4.1, 0.9]}
       />
 
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[28, 20]} />
-        <meshStandardMaterial color="#727d84" />
-      </mesh>
+      <AnimatedBasePlane equity={equityScore} />
+      <VitalityField equity={equityScore} />
 
       <QuayWaterfront traffic={averageTraffic} transit={averageTransit} />
       <TorontoIslands />
-      <GardinerFrontage traffic={averageTraffic} />
+      <GardinerFrontage congestion={congestionScore} />
       <RailCorridor traffic={averageTraffic} />
       <StreetcarAndTracks transit={averageTransit} />
       <HeatBands zones={scenario.zones} />
-      <SkylineCore scenario={scenario} />
-      <ForegroundCondos peaks={[scenario.zones[1].peakEnergy, scenario.zones[0].peakEnergy, scenario.zones[2].peakEnergy]} />
+      <SkylineCore scenario={scenario} energyHealth={energyScore} fiscalHealth={costScore} />
+      <ForegroundCondos peaks={peaks} energyHealth={energyScore} fiscalHealth={costScore} />
       <CityHallComplex peakEnergy={civicPeak} />
       <GooderhamFlatiron />
       <HarbourfrontCampus />
@@ -461,15 +908,6 @@ function DistrictScene({ scenario }: { scenario: ScenarioState }) {
         </mesh>
       ))}
 
-      <Float speed={1.5} rotationIntensity={0.06} floatIntensity={0.16}>
-        <group position={[0.55, 0, 0.9]}>
-          <mesh position={[0, 9.24, 0]}>
-            <torusGeometry args={[0.93, 0.055, 12, 28]} />
-            <meshStandardMaterial color="#efe0c7" emissive="#ffd39e" emissiveIntensity={0.16} />
-          </mesh>
-        </group>
-      </Float>
-
       <Environment preset="city" />
     </>
   );
@@ -481,13 +919,13 @@ export function ScenePanel({ scenario }: ScenePanelProps) {
       <div className={styles.overlay}>
         <div>
           <p className={styles.eyebrow}>District Visual Twin</p>
-          <h2 className={styles.title}>Toronto skyline with civic core and waterfront</h2>
+          <h2 className={styles.title}>Toronto Skyline</h2>
         </div>
-        <div className={styles.legend}>
+        {/* <div className={styles.legend}>
           <span>Lake Ontario and the Islands frame the south edge</span>
           <span>CN Tower, Rogers Centre, Union shed, City Hall, and the Flatiron anchor the scene</span>
           <span>Streetcars, the Gardiner, and tower glow react to policy pressure</span>
-        </div>
+        </div> */}
       </div>
       <div className={styles.canvasWrap}>
         <Canvas shadows dpr={[1, 2]}>
