@@ -106,6 +106,107 @@ function UnionShed() {
   );
 }
 
+function CityHallComplex({ peakEnergy }: { peakEnergy: number }) {
+  const towerGlow = colorLerp("#50606c", "#ff9a63", peakEnergy);
+
+  return (
+    <group position={[-5.1, 0, -1.25]}>
+      <mesh position={[0, 0.34, 0]} receiveShadow>
+        <cylinderGeometry args={[1.45, 1.65, 0.68, 40]} />
+        <meshStandardMaterial color="#b7c0c7" />
+      </mesh>
+      <mesh position={[-0.5, 1.85, 0]} rotation={[0, 0, Math.PI / 18]} castShadow>
+        <boxGeometry args={[0.62, 3.1, 0.76]} />
+        <meshStandardMaterial color="#7c8f9e" emissive={towerGlow} emissiveIntensity={0.18 + peakEnergy * 0.4} />
+      </mesh>
+      <mesh position={[0.55, 2.2, -0.04]} rotation={[0, 0, -Math.PI / 16]} castShadow>
+        <boxGeometry args={[0.7, 3.8, 0.82]} />
+        <meshStandardMaterial color="#90a3b0" emissive={towerGlow} emissiveIntensity={0.16 + peakEnergy * 0.45} />
+      </mesh>
+      <mesh position={[0.08, 0.86, 0.42]} castShadow>
+        <boxGeometry args={[0.22, 1.1, 0.22]} />
+        <meshStandardMaterial color="#cfd7dd" emissive="#ffe1bb" emissiveIntensity={0.14} />
+      </mesh>
+    </group>
+  );
+}
+
+function GooderhamFlatiron() {
+  return (
+    <group position={[-1.9, 0, 2.55]}>
+      <mesh position={[0, 0.7, 0]} castShadow receiveShadow>
+        <boxGeometry args={[0.55, 1.4, 1.25]} />
+        <meshStandardMaterial color="#9d4930" />
+      </mesh>
+      <mesh position={[0.18, 0.7, 0.58]} rotation={[0, Math.PI / 4, 0]} castShadow>
+        <coneGeometry args={[0.38, 1.4, 4]} />
+        <meshStandardMaterial color="#b35b3c" />
+      </mesh>
+      <mesh position={[0, 1.46, 0]} castShadow>
+        <boxGeometry args={[0.44, 0.1, 1.08]} />
+        <meshStandardMaterial color="#d8c3ab" />
+      </mesh>
+    </group>
+  );
+}
+
+function HarbourfrontCampus() {
+  return (
+    <group position={[3.3, 0, 3.15]}>
+      <mesh position={[0, 0.34, 0]} receiveShadow>
+        <boxGeometry args={[2.8, 0.68, 1.15]} />
+        <meshStandardMaterial color="#d3cbbd" />
+      </mesh>
+      <mesh position={[-0.9, 1.0, -0.1]} castShadow>
+        <boxGeometry args={[0.54, 1.35, 0.54]} />
+        <meshStandardMaterial color="#7f8b93" />
+      </mesh>
+      <mesh position={[0.95, 1.22, 0.05]} castShadow>
+        <boxGeometry args={[0.66, 1.8, 0.62]} />
+        <meshStandardMaterial color="#8c969d" />
+      </mesh>
+    </group>
+  );
+}
+
+function TorontoIslands() {
+  return (
+    <group position={[0, -0.02, 9.6]}>
+      {[
+        { pos: [-6.2, 0, 0.1] as [number, number, number], scale: [4.6, 0.16, 1.15] as [number, number, number] },
+        { pos: [-0.8, 0, -0.25] as [number, number, number], scale: [5.2, 0.18, 1.35] as [number, number, number] },
+        { pos: [5.1, 0, 0.05] as [number, number, number], scale: [3.8, 0.14, 0.95] as [number, number, number] },
+      ].map((island, index) => (
+        <mesh key={index} position={island.pos} receiveShadow>
+          <boxGeometry args={island.scale} />
+          <meshStandardMaterial color="#768b6b" emissive="#a6c08c" emissiveIntensity={0.05} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function StreetcarAndTracks({ transit }: { transit: number }) {
+  return (
+    <group position={[4.95, 0.03, 4.12]}>
+      {[-0.16, 0.16].map((x, index) => (
+        <mesh key={index} rotation={[-Math.PI / 2, 0, 0]} position={[x, 0, 0]}>
+          <planeGeometry args={[0.06, 12.2]} />
+          <meshStandardMaterial color="#54585d" emissive="#ff9569" emissiveIntensity={transit * 0.06} />
+        </mesh>
+      ))}
+      <mesh position={[0, 0.18, -0.55]} castShadow>
+        <boxGeometry args={[0.34, 0.22, 1.1]} />
+        <meshStandardMaterial color="#bb2436" emissive="#ff7787" emissiveIntensity={0.22 + transit * 0.38} />
+      </mesh>
+      <mesh position={[0, 0.28, -0.55]} castShadow>
+        <boxGeometry args={[0.22, 0.16, 0.72]} />
+        <meshStandardMaterial color="#e0e4e8" />
+      </mesh>
+    </group>
+  );
+}
+
 function CnTower() {
   return (
     <group position={[0.55, 0, 0.9]}>
@@ -305,6 +406,7 @@ function DistrictScene({ scenario }: { scenario: ScenarioState }) {
   const averageTraffic = scenario.zones.reduce((sum, zone) => sum + zone.trafficLevel, 0) / scenario.zones.length;
   const averageTransit = scenario.zones.reduce((sum, zone) => sum + zone.transitLevel, 0) / scenario.zones.length;
   const chargerZone = scenario.zones.find((zone) => zone.districtType === "charging");
+  const civicPeak = scenario.zones[0]?.peakEnergy ?? 0.5;
 
   return (
     <>
@@ -329,11 +431,16 @@ function DistrictScene({ scenario }: { scenario: ScenarioState }) {
       </mesh>
 
       <QuayWaterfront traffic={averageTraffic} transit={averageTransit} />
+      <TorontoIslands />
       <GardinerFrontage traffic={averageTraffic} />
       <RailCorridor traffic={averageTraffic} />
+      <StreetcarAndTracks transit={averageTransit} />
       <HeatBands zones={scenario.zones} />
       <SkylineCore scenario={scenario} />
       <ForegroundCondos peaks={[scenario.zones[1].peakEnergy, scenario.zones[0].peakEnergy, scenario.zones[2].peakEnergy]} />
+      <CityHallComplex peakEnergy={civicPeak} />
+      <GooderhamFlatiron />
+      <HarbourfrontCampus />
       <RogersCentre />
       <UnionShed />
       <CnTower />
@@ -374,14 +481,13 @@ export function ScenePanel({ scenario }: ScenePanelProps) {
       <div className={styles.overlay}>
         <div>
           <p className={styles.eyebrow}>District Visual Twin</p>
-          <h2 className={styles.title}>Toronto waterfront skyline model</h2>
+          <h2 className={styles.title}>Toronto skyline with civic core and waterfront</h2>
         </div>
-        {/* <div className={styles.legend}>
-          <span>Lake Ontario foreground / Rogers Centre / CN Tower / financial core</span>
-          <span>Traffic activates the Gardiner and frontage lanes</span>
-          <span>Peak demand drives tower glow across the skyline</span>
-          <span>Cooling and heat effects remain policy-reactive</span>
-        </div> */}
+        <div className={styles.legend}>
+          <span>Lake Ontario and the Islands frame the south edge</span>
+          <span>CN Tower, Rogers Centre, Union shed, City Hall, and the Flatiron anchor the scene</span>
+          <span>Streetcars, the Gardiner, and tower glow react to policy pressure</span>
+        </div>
       </div>
       <div className={styles.canvasWrap}>
         <Canvas shadows dpr={[1, 2]}>
